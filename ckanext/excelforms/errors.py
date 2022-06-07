@@ -1,7 +1,7 @@
 
-class RecombinantException(Exception):
+class ExcelFormsException(Exception):
     pass
 
-class BadExcelData(Exception):
+class BadExcelData(ExcelFormsException):
     def __init__(self, message):
         self.message = message

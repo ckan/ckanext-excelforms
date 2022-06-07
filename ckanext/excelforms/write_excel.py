@@ -10,13 +10,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import NamedStyle
 
-from ckanext.recombinant.tables import get_geno
-from ckanext.recombinant.errors import RecombinantException
-from ckanext.recombinant.datatypes import datastore_type
-from ckanext.recombinant.helpers import (
-    recombinant_choice_fields, recombinant_language_text)
-from ckanext.recombinant.write_excel_v2 import (
-    _populate_excel_sheet_v2, _populate_reference_sheet_v2)
+from .datatypes import datastore_type
 
 from ckan.plugins.toolkit import _, h
 

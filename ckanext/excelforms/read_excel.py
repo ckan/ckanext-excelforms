@@ -2,8 +2,8 @@ import re
 
 import openpyxl
 
-from ckanext.recombinant.datatypes import canonicalize
-from ckanext.recombinant.errors import BadExcelData
+from ckanext.excelforms.datatypes import canonicalize
+from ckanext.excelforms.errors import BadExcelData
 
 HEADER_ROWS_V2 = 3
 HEADER_ROWS_V3 = 5
@@ -118,7 +118,7 @@ def get_records(rows, fields, primary_key_fields, choice_fields):
                         f['datastore_id'] in primary_key_fields,
                         choice_fields.get(f['datastore_id'], False)))
                 for f, v in zip(fields, row))))
-        except BadExcelData, e:
+        except BadExcelData as e:
             raise BadExcelData(u'Row {0}:'.format(n) + u' ' + e.message)
 
     return records

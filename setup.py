@@ -1,19 +1,18 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '2.0.0dev'
+version = '0.0.1'
 
 setup(
-    name='ckanext-recombinant',
+    name='ckanext-excelforms',
     version=version,
-    description="Create datastore tables for organizations and "
-        "provide combined output",
+    description="Excel forms for entering data into Table Designer tables",
     long_description="""
     """,
     classifiers=[], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
     keywords='',
     author='Government of Canada',
-    author_email='Michel.Gendron@statcan.gc.ca',
+    author_email='ian@excess.org',
     url='',
     license='MIT',
     packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
@@ -26,10 +25,7 @@ setup(
     entry_points=\
     """
     [ckan.plugins]
-    recombinant=ckanext.recombinant.plugins:RecombinantPlugin
-
-    [paste.paster_command]
-    recombinant=ckanext.recombinant.commands:TableCommand
+    excelforms=ckanext.excelforms.plugins:ExcelFormsPlugin
 
     [babel.extractors]
     ckan=ckan.lib.extract:extract_ckan

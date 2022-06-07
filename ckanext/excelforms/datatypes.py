@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
-from ckanext.recombinant.errors import BadExcelData
+from ckanext.excelforms.errors import BadExcelData
 
 
 # Codifies data store types available in recombinant-tables JSON
