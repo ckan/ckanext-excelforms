@@ -3,11 +3,16 @@ import os
 import uuid
 
 from paste.deploy.converters import asbool
-from ckan.plugins.toolkit import _
+from ckan.plugins.toolkit import _, h
 import ckan.plugins as p
 from ckan.lib.plugins import DefaultDatasetForm, DefaultTranslation
 
 from ckanext.excelforms import blueprint
+
+def excelforms_language_text(f, field, lang=None):
+    if not lang:
+        lang = h.lang()
+    return f.get(field + '_' + lang, f.get(field, ''))
 
 
 class ExcelFormsPlugin(p.SingletonPlugin, DefaultTranslation):
@@ -56,6 +61,7 @@ class ExcelFormsPlugin(p.SingletonPlugin, DefaultTranslation):
 
     def get_helpers(self):
         return {
+            'excelforms_language_text': excelforms_language_text,
             }
 
 

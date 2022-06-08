@@ -89,56 +89,33 @@ TYPE_HERE_STYLE = {
     'Font': {'bold': True, 'size': 16}}
 
 
-def excel_template(dataset_type, org):
+def excel_template(resource, dd):
     """
     return an openpyxl.Workbook object containing the sheet and header fields
-    for passed dataset_type and org. Supports version 2 and 3 templates.
+    for passed column definitions dd.
     """
-    geno = get_geno(dataset_type)
-    version = geno.get('template_version', 2)
 
     book = openpyxl.Workbook()
     sheet = book.active
     refs = []
     choice_ranges = []
 
-    if version == 3:
-        _build_styles(book, geno)
-    for rnum, chromo in enumerate(geno['resources'], 1):
-        if version == 2:
-            _populate_excel_sheet_v2(sheet, chromo, org, refs)
-        elif version == 3:
-            _append_resource_ref_header(geno, refs, rnum)
-            choice_ranges.append(_populate_excel_sheet(
-                book, sheet, geno, chromo, org, refs, rnum))
-            sheet.protection.enabled = True
-            sheet.protection.formatRows = False
-            sheet.protection.formatColumns = False
-        sheet = book.create_sheet()
-
-    if version == 2:
-        _populate_reference_sheet_v2(sheet, chromo, refs)
-    elif version == 3:
-        _populate_reference_sheet(sheet, geno, refs)
+    _build_styles(book, dd)
+    _populate_reference_sheet(sheet, resource, dd, refs)
     sheet.title = 'reference'
     sheet.protection.enabled = True
 
-    if version == 2:
-        return book
+    sheet = book.create_sheet()
+    _populate_excel_e_sheet(sheet, dd, choice_ranges)
+    sheet.title = 'e'
+    sheet.protection.enabled = True
+    sheet.sheet_state = 'hidden'
 
-    for i, (chromo, cranges) in enumerate(
-            zip(geno['resources'], choice_ranges), 1):
-        sheet = book.create_sheet()
-        _populate_excel_e_sheet(sheet, chromo, cranges)
-        sheet.title = 'e{i}'.format(i=i)
-        sheet.protection.enabled = True
-        sheet.sheet_state = 'hidden'
-
-        sheet = book.create_sheet()
-        _populate_excel_r_sheet(sheet, chromo)
-        sheet.title = 'r{i}'.format(i=i)
-        sheet.protection.enabled = True
-        sheet.sheet_state = 'hidden'
+    sheet = book.create_sheet()
+    _populate_excel_r_sheet(sheet, dd)
+    sheet.title = 'r'
+    sheet.protection.enabled = True
+    sheet.sheet_state = 'hidden'
     return book
 
 
@@ -178,60 +155,6 @@ def datastore_type_format(value, datastore_type):
     return item
 
 
-def excel_data_dictionary(geno):
-    """
-    return an openpyxl.Workbook object containing the field reference
-    from geno, one sheet per language
-    """
-    book = openpyxl.Workbook()
-    sheet = book.active
-
-    style1 = {
-        'PatternFill': {
-            'patternType': 'solid',
-            'fgColor': 'FFFFF056'},
-        'Font': {
-            'bold': True}}
-    style2 = {
-        'PatternFill': {
-            'patternType': 'solid',
-            'fgColor': 'FFDFE2DB'}}
-
-    from pylons import config
-    from ckan.lib.i18n import handle_request, get_lang
-    from ckan.common import c, request
-
-    _build_styles(book, geno)
-    for lang in config['ckan.locales_offered'].split():
-        if sheet is None:
-            sheet = book.create_sheet()
-
-        sheet.title = lang.upper()
-        # switch language (FIXME: this is harder than it should be)
-        request.environ['CKAN_LANG'] = lang
-        handle_request(request, c)
-        choice_fields = dict(
-            (f['datastore_id'], f['choices'])
-            for chromo in geno['resources']
-            for f in recombinant_choice_fields(chromo['resource_name']))
-
-        refs = []
-        for chromo in geno['resources']:
-            for field in chromo['fields']:
-                _append_field_ref_rows(refs, field, link=None)
-
-                if field['datastore_id'] in choice_fields:
-                    _append_field_choices_rows(
-                        refs,
-                        choice_fields[field['datastore_id']],
-                        full_text_choices=False)
-
-        _populate_reference_sheet(sheet, geno, refs)
-        sheet = None
-
-    return book
-
-
 def estimate_width_from_length(length):
     range1 = max(length, ESTIMATE_WIDTH_MULTIPLE_1_CHARS)
     range2 = length - range1
@@ -255,18 +178,12 @@ def _build_styles(book, geno):
     """
     Add styles to workbook
     """
-    build_named_style(book, 'reco_edge', dict(
-        DEFAULT_EDGE_STYLE, **geno.get('excel_edge_style', {})))
-    build_named_style(book, 'reco_header', dict(
-        DEFAULT_HEADER_STYLE, **geno.get('excel_header_style', {})))
-    build_named_style(book, 'reco_header2', dict(
-        DEFAULT_REF_HEADER2_STYLE, **geno.get('excel_header_style', {})))
-    build_named_style(book, 'reco_cheading', dict(
-        DEFAULT_CHEADING_STYLE, **geno.get('excel_column_heading_style', {})))
-    build_named_style(book, 'reco_example', dict(
-        DEFAULT_EXAMPLE_STYLE, **geno.get('excel_example_style', {})))
-    build_named_style(book, 'reco_error', dict(
-        DEFAULT_ERROR_STYLE, **geno.get('excel_error_style', {})))
+    build_named_style(book, 'reco_edge', DEFAULT_EDGE_STYLE)
+    build_named_style(book, 'reco_header', DEFAULT_HEADER_STYLE)
+    build_named_style(book, 'reco_header2', DEFAULT_REF_HEADER2_STYLE)
+    build_named_style(book, 'reco_cheading', DEFAULT_CHEADING_STYLE)
+    build_named_style(book, 'reco_example', DEFAULT_EXAMPLE_STYLE)
+    build_named_style(book, 'reco_error', DEFAULT_ERROR_STYLE)
     build_named_style(book, 'reco_ref_number', REF_NUMBER_STYLE)
     build_named_style(book, 'reco_ref_title', REF_TITLE_STYLE)
     build_named_style(book, 'reco_ref_attr', REF_ATTR_STYLE)
@@ -571,16 +488,16 @@ def _append_field_choices_rows(refs, choices, full_text_choices):
         max_length = max(max_length, len(choice[0]))  # used for full_text_choices
     return estimate_width_from_length(max_length)
 
-def _populate_reference_sheet(sheet, geno, refs):
+def _populate_reference_sheet(sheet, resource, dd, refs):
     field_count = 1
 
-    header1_style = dict(DEFAULT_HEADER_STYLE, **geno.get('excel_header_style', {}))
-    header2_style = dict(DEFAULT_REF_HEADER2_STYLE, **geno.get('excel_header_style', {}))
+    header1_style = DEFAULT_HEADER_STYLE
+    header2_style = DEFAULT_REF_HEADER2_STYLE
     fill_cell(
         sheet,
         REF_HEADER1_ROW,
         REF_KEY_COL_NUM,
-        recombinant_language_text(geno['title']),
+        h.get_translated(resource, 'name'),
         'reco_header')
     apply_style(sheet.row_dimensions[REF_HEADER1_ROW], header1_style)
     fill_cell(
@@ -666,7 +583,7 @@ def _populate_reference_sheet(sheet, geno, refs):
     sheet.column_dimensions[REF_VALUE_COL].width = REF_VALUE_WIDTH
 
 
-def _populate_excel_e_sheet(sheet, chromo, cranges):
+def _populate_excel_e_sheet(sheet, dd, cranges):
     """
     Populate the "error" calculation excel worksheet
 
@@ -677,12 +594,12 @@ def _populate_excel_e_sheet(sheet, chromo, cranges):
     in the corresponding cell on the data entry sheet.
     """
     col = None
-    data_num_rows = chromo.get('excel_data_num_rows', DEFAULT_DATA_NUM_ROWS)
+    data_num_rows = DEFAULT_DATA_NUM_ROWS
 
-    for col_num, field in template_cols_fields(chromo):
-        pk_field = field['datastore_id'] in chromo['datastore_primary_key']
+    for col_num, field in template_cols_fields(dd):
+        #pk_field = field['datastore_id'] in chromo['datastore_primary_key']
 
-        crange = cranges.get(field['datastore_id'])
+        crange = cranges.get(field['id'])
         fmla = None
         if field['datastore_type'] == 'date':
             fmla = 'NOT(ISNUMBER({cell}+0))'
@@ -875,13 +792,13 @@ def fill_cell(sheet, row, column, value, style):
     :return: None
     """
     c = sheet.cell(row=row, column=column)
-    if isinstance(value, basestring):
+    if hasattr(value, 'replace'):
         value = value.replace(u'\n', u'\r\n')
     c.value = value
-    if isinstance(style, basestring):
-        c.style = style
-    else:
+    if isinstance(style, dict):
         apply_style(c, style)
+    else:
+        c.style = style
 
 
 def build_named_style(book, name, config):
@@ -928,11 +845,10 @@ def org_title_lang_hack(title):
         return title.split(u' | ')[-1]
     return title.split(u' | ')[0]
 
-def template_cols_fields(chromo):
+def template_cols_fields(dd):
     ''' (col_num, field) ... for fields in template'''
     return enumerate(
-        (f for f in chromo['fields'] if f.get(
-            'import_template_include', True)), DATA_FIRST_COL_NUM)
+        (f for f in dd if f['id'] != '_id'), DATA_FIRST_COL_NUM)
 
 def _add_conditional_formatting(
         sheet, col_letter, resource_num, error_style, required_style,

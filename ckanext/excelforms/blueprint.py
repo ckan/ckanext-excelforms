@@ -11,8 +11,7 @@ from ckan.logic import ValidationError, NotAuthorized
 
 from ckanext.excelforms.errors import BadExcelData
 from ckanext.excelforms.read_excel import read_excel, get_records
-from ckanext.excelforms.write_excel import (
-    excel_template, excel_data_dictionary, append_data)
+from ckanext.excelforms.write_excel import excel_template, append_data
 
 from io import StringIO
 
@@ -76,8 +75,9 @@ def template(id, resource_id):
 
     lc = ckanapi.LocalCKAN(username=g.user)
     dd = _get_data_dictionary(lc, resource_id)
+    resource = lc.action.resource_show(id=resource_id)
 
-    book = excel_template(dd)
+    book = excel_template(resource, dd)
 
     if request.method == 'POST':
         filters = {}
