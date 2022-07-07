@@ -29,36 +29,6 @@ class ExcelFormsPlugin(p.SingletonPlugin, DefaultTranslation):
     def get_blueprint(self):
         return blueprint.excelforms
 
-    def before_map(self, map):
-        map.connect('/recombinant/upload/{id}', action='upload',
-            conditions=dict(method=['POST']),
-            controller='ckanext.recombinant.controller:UploadController')
-        map.connect('/recombinant/delete/{id}/{resource_id}',
-            action='delete_records',
-            conditions=dict(method=['POST']),
-            controller='ckanext.recombinant.controller:UploadController')
-        map.connect('recombinant_template',
-            '/recombinant-template/{dataset_type}_{lang}_{owner_org}.xlsx',
-            action='template',
-            controller='ckanext.recombinant.controller:UploadController')
-        map.connect('recombinant_data_dictionary',
-            '/recombinant-dictionary/{dataset_type}',
-            action='data_dictionary',
-            controller='ckanext.recombinant.controller:UploadController')
-        map.connect('recombinant_schema_json',
-            '/recombinant-schema/{dataset_type}.json',
-            action='schema_json',
-            controller='ckanext.recombinant.controller:UploadController')
-        map.connect('recombinant_resource',
-            '/recombinant/{resource_name}/{owner_org}',
-            action='preview_table',
-            controller='ckanext.recombinant.controller:UploadController')
-        map.connect('recombinant_type',
-            '/recombinant/{resource_name}',
-            action='type_redirect',
-            controller='ckanext.recombinant.controller:UploadController')
-        return map
-
     def get_helpers(self):
         return {
             'excelforms_language_text': excelforms_language_text,

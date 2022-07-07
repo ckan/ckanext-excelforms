@@ -3,8 +3,10 @@
 Excel v3 template and data-dictionary generation code
 """
 
+import re
 import textwrap
 import string
+
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import FormulaRule
@@ -12,10 +14,13 @@ from openpyxl.styles import NamedStyle
 
 from .datatypes import datastore_type
 
-from ckan.plugins.toolkit import _, h
+from ckan.plugins.toolkit import _, h, asbool
 
 from datetime import datetime
 from decimal import Decimal
+
+EXCEL_SHEET_NAME_MAX = 31
+EXCEL_SHEET_NAME_INVALID_RE = r'[^a-zA-Z0-9]'
 
 HEADER_ROW, HEADER_HEIGHT = 1, 27
 CHEADINGS_ROW, CHEADINGS_HEIGHT = 2, 22
@@ -51,6 +56,9 @@ REF_VALUE_COL, REF_VALUE_COL_NUM = 'D', 4
 REF_VALUE_WIDTH = 114
 REF_CHOICE_HEADING_HEIGHT = 24
 REF_EDGE_RANGE = 'A1:A2'
+
+DEFAULT_SHEET_NAME = 'excelforms'
+EXTENSION_GITHUB = 'https://github.com/open-data/ckanext-excelforms'
 
 DEFAULT_YEAR_MIN, DEFAULT_YEAR_MAX = '2018-50', '2018+50'
 
@@ -96,23 +104,28 @@ def excel_template(resource, dd):
     """
 
     book = openpyxl.Workbook()
-    sheet = book.active
+    form_sheet = book.active
     refs = []
-    choice_ranges = []
 
     _build_styles(book, dd)
+    cranges = _populate_excel_sheet(book, form_sheet, resource, dd, refs)
+    form_sheet.protection.enabled = True
+    form_sheet.protection.formatRows = False
+    form_sheet.protection.formatColumns = False
+
+    sheet = book.create_sheet()
     _populate_reference_sheet(sheet, resource, dd, refs)
     sheet.title = 'reference'
     sheet.protection.enabled = True
 
     sheet = book.create_sheet()
-    _populate_excel_e_sheet(sheet, dd, choice_ranges)
+    _populate_excel_e_sheet(sheet, dd, cranges)
     sheet.title = 'e'
     sheet.protection.enabled = True
     sheet.sheet_state = 'hidden'
 
     sheet = book.create_sheet()
-    _populate_excel_r_sheet(sheet, dd)
+    _populate_excel_r_sheet(sheet, resource, dd, form_sheet.title)
     sheet.title = 'r'
     sheet.protection.enabled = True
     sheet.sheet_state = 'hidden'
@@ -178,53 +191,70 @@ def _build_styles(book, geno):
     """
     Add styles to workbook
     """
-    build_named_style(book, 'reco_edge', DEFAULT_EDGE_STYLE)
-    build_named_style(book, 'reco_header', DEFAULT_HEADER_STYLE)
-    build_named_style(book, 'reco_header2', DEFAULT_REF_HEADER2_STYLE)
-    build_named_style(book, 'reco_cheading', DEFAULT_CHEADING_STYLE)
-    build_named_style(book, 'reco_example', DEFAULT_EXAMPLE_STYLE)
-    build_named_style(book, 'reco_error', DEFAULT_ERROR_STYLE)
-    build_named_style(book, 'reco_ref_number', REF_NUMBER_STYLE)
-    build_named_style(book, 'reco_ref_title', REF_TITLE_STYLE)
-    build_named_style(book, 'reco_ref_attr', REF_ATTR_STYLE)
-    build_named_style(book, 'reco_ref_value', REF_VALUE_STYLE)
+    build_named_style(book, 'xlf_edge', DEFAULT_EDGE_STYLE)
+    build_named_style(book, 'xlf_header', DEFAULT_HEADER_STYLE)
+    build_named_style(book, 'xlf_header2', DEFAULT_REF_HEADER2_STYLE)
+    build_named_style(book, 'xlf_cheading', DEFAULT_CHEADING_STYLE)
+    build_named_style(book, 'xlf_example', DEFAULT_EXAMPLE_STYLE)
+    build_named_style(book, 'xlf_error', DEFAULT_ERROR_STYLE)
+    build_named_style(book, 'xlf_ref_number', REF_NUMBER_STYLE)
+    build_named_style(book, 'xlf_ref_title', REF_TITLE_STYLE)
+    build_named_style(book, 'xlf_ref_attr', REF_ATTR_STYLE)
+    build_named_style(book, 'xlf_ref_value', REF_VALUE_STYLE)
 
 
-def _populate_excel_sheet(book, sheet, geno, chromo, org, refs, resource_num):
+def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
     """
-    Format openpyxl sheet for the resource definition chromo and org.
-    (Version 3)
+    Format openpyxl sheet for the resource excel form
 
     refs - list of rows to add to reference sheet, modified
         in place from this function
-    resource_num - 1-based index of resource
 
     returns cranges dict of {datastore_id: reference_key_range}
     """
-    sheet.title = chromo['resource_name']
+    sheet.title = re.sub(
+        EXCEL_SHEET_NAME_INVALID_RE, '', str(
+            resource.get('excelforms_sheet_title')
+        )
+    ).strip()[:EXCEL_SHEET_NAME_MAX] or DEFAULT_SHEET_NAME
 
     cranges = {}
-    data_num_rows = chromo.get('excel_data_num_rows', DEFAULT_DATA_NUM_ROWS)
+    data_num_rows = int(
+        resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS)
+    )
 
     required_style = dict(
-        dict(DEFAULT_EDGE_STYLE, **geno.get('excel_edge_style', {})),
-        **geno.get('excel_required_style', {}))
+        dict(
+            DEFAULT_EDGE_STYLE,
+            **resource.get('excelforms_edge_style', {})
+        ),
+        **resource.get('excelforms_required_style', {})
+    )
     error_style = dict(
-        DEFAULT_ERROR_STYLE, **geno.get('excel_error_style', {}))
+        DEFAULT_ERROR_STYLE,
+        **resource.get('excelforms_error_style', {})
+    )
     header_style = dict(
-        DEFAULT_HEADER_STYLE, **geno.get('excel_header_style', {}))
+        DEFAULT_HEADER_STYLE,
+        **resource.get('excelforms_header_style', {})
+    )
     cheadings_style = dict(
         DEFAULT_CHEADING_STYLE,
-        **geno.get('excel_column_heading_style', {}))
+        **resource.get('excelforms_column_heading_style', {})
+    )
     example_style = dict(
-        DEFAULT_EXAMPLE_STYLE, **geno.get('excel_example_style', {}))
+        DEFAULT_EXAMPLE_STYLE,
+        **resource.get('excelforms_example_style', {})
+    )
 
     # create rows so we can set all heights
-    for i in xrange(1, DATA_FIRST_ROW + data_num_rows):
+    for i in range(1, DATA_FIRST_ROW + data_num_rows):
         sheet.cell(row=i, column=1).value = None
 
-    sheet.merge_cells(EXAMPLE_MERGE)
-    fill_cell(sheet, EXAMPLE_ROW, 1, _('e.g.'), 'reco_example')
+    example = resource.get('excelforms_example_value')
+    if example:
+        sheet.merge_cells(EXAMPLE_MERGE)
+        fill_cell(sheet, EXAMPLE_ROW, 1, _('e.g.'), 'xlf_example')
 
     fill_cell(
         sheet,
@@ -240,39 +270,53 @@ def _populate_excel_sheet(book, sheet, geno, chromo, org, refs, resource_num):
         sheet,
         HEADER_ROW,
         DATA_FIRST_COL_NUM,
-        recombinant_language_text(chromo['title'])
-            + u' \N{em dash} ' + org_title_lang_hack(org['title']),
-        'reco_header')
+        h.get_translated(resource, 'name') or resource['package_id']
+            + u' \N{em dash} '
+            + h.url_for(
+                'dataset_resource.read',
+                id=resource['package_id'],
+                resource_id=resource['id']
+            ),
+        'xlf_header')
 
-    sheet.cell(row=CODE_ROW, column=1).value = 'v3'  # template version
-    # allow only upload to this org
-    sheet.cell(row=CODE_ROW, column=2).value = org['name']
+    sheet.cell(row=CODE_ROW, column=1).value = 'xlf_v1'  # template version
+    # link to this extension in case someone is curious
+    sheet.cell(row=CODE_ROW, column=2).value = EXTENSION_GITHUB
+    # record of resource id
+    sheet.cell(row=CODE_ROW, column=3).value = resource['id']
+
 
     cheadings_dimensions = sheet.row_dimensions[CHEADINGS_ROW]
 
-    choice_fields = dict(
-        (f['datastore_id'], f['choices'])
-        for f in recombinant_choice_fields(chromo['resource_name']))
+    choice_fields = {}
+# FIXME: enable choices in data dictionary
+#    choice_fields = dict(
+#        (f['datastore_id'], f['choices'])
+#        for f in recombinant_choice_fields(chromo['resource_name']))
 
-    for col_num, field in template_cols_fields(chromo):
-        field_heading = recombinant_language_text(
-            field.get('excel_heading', field['label'])).strip()
-        cheadings_dimensions.height = max(
-            cheadings_dimensions.height,
-            field_heading.count('\n') * LINE_HEIGHT + CHEADINGS_HEIGHT)
+    for col_num, field in template_cols_fields(dd):
+        field_heading = h.excelforms_language_text(
+            field['info'],
+            'label'
+        ).strip()
+# FIXME: returning None?
+#        cheadings_dimensions.height = max(
+#            cheadings_dimensions.height,
+#            field_heading.count('\n') * LINE_HEIGHT + CHEADINGS_HEIGHT)
 
-        col_heading_style = 'reco_cheading'
-        if 'excel_column_heading_style' in field:
-            # use geno column heading style as base, just override keys
-            col_heading_style = dict(
-                dict(
-                    DEFAULT_CHEADING_STYLE,
-                    **geno.get('excel_column_heading_style', {})),
-                **field['excel_column_heading_style'])
-            apply_style(sheet.cell(
-                row=HEADER_ROW, column=col_num), col_heading_style)
-            apply_style(sheet.cell(
-                row=CSTATUS_ROW, column=col_num), col_heading_style)
+        col_heading_style = 'xlf_cheading'
+# FIXME: enable column styling from data dictionary
+#        if 'excel_column_heading_style' in field:
+#            # use column heading style as base, just override keys
+#            col_heading_style = dict(
+#                dict(
+#                    DEFAULT_CHEADING_STYLE,
+#                    **geno.get('excel_column_heading_style', {})),
+#                **field['excel_column_heading_style'])
+#            apply_style(sheet.cell(
+#                row=HEADER_ROW, column=col_num), col_heading_style)
+#            apply_style(sheet.cell(
+#                row=CSTATUS_ROW, column=col_num), col_heading_style)
 
         fill_cell(
             sheet,
@@ -284,15 +328,16 @@ def _populate_excel_sheet(book, sheet, geno, chromo, org, refs, resource_num):
         reference_row1 = len(refs) + REF_FIRST_ROW
 
         # match against db columns
-        sheet.cell(row=CODE_ROW, column=col_num).value = field['datastore_id']
+        sheet.cell(row=CODE_ROW, column=col_num).value = field['id']
 
-        example = chromo['examples']['record'].get(field['datastore_id'], '')
-        fill_cell(
-            sheet,
-            EXAMPLE_ROW,
-            col_num,
-            u','.join(example) if isinstance(example, list) else example,
-            'reco_example')
+        if example:
+            ex_value = example.get(field['id'], '')
+            fill_cell(
+                sheet,
+                EXAMPLE_ROW,
+                col_num,
+                u','.join(ex_value) if isinstance(ex_value, list) else ex_value,
+                'xlf_example')
 
         col_letter = get_column_letter(col_num)
 
@@ -317,10 +362,10 @@ def _populate_excel_sheet(book, sheet, geno, chromo, org, refs, resource_num):
             row1=DATA_FIRST_ROW,
             rowN=DATA_FIRST_ROW + data_num_rows - 1)
 
-        xl_format = datastore_type[field['datastore_type']].xl_format
+        xl_format = datastore_type[field['type']].xl_format
         alignment = openpyxl.styles.Alignment(wrap_text=True)
         col_style = NamedStyle(
-            name='reco_{0}{1}'.format(resource_num, col_letter),
+            name='xlf_{0}{1}'.format(resource_num, col_letter),
             number_format=xl_format,
             alignment=alignment,
             protection=openpyxl.styles.Protection(locked=False))
@@ -334,7 +379,7 @@ def _populate_excel_sheet(book, sheet, geno, chromo, org, refs, resource_num):
         _append_field_ref_rows(refs, field, "#'{sheet}'!{col}{row}".format(
             sheet=sheet.title, col=col_letter, row=CHEADINGS_ROW))
 
-        if field['datastore_id'] in choice_fields:
+        if field['id'] in choice_fields:
             full_text_choices = (
                 field['datastore_type'] != '_text' and field.get(
                 'excel_full_text_choices', False))
@@ -410,11 +455,16 @@ def _populate_excel_sheet(book, sheet, geno, chromo, org, refs, resource_num):
     sheet.row_dimensions[HEADER_ROW].height = HEADER_HEIGHT
     sheet.row_dimensions[CODE_ROW].hidden = True
     sheet.row_dimensions[CSTATUS_ROW].height = CSTATUS_HEIGHT
-    sheet.row_dimensions[EXAMPLE_ROW].height = chromo.get(
-        'excel_example_height', DEFAULT_EXAMPLE_HEIGHT)
-    for i in xrange(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
-        sheet.row_dimensions[i].height = chromo.get(
-            'excel_data_height', DEFAULT_DATA_HEIGHT)
+    if example:
+        sheet.row_dimensions[EXAMPLE_ROW].height = int(
+            resource.get('excelforms_example_height',
+            DEFAULT_EXAMPLE_HEIGHT)
+        )
+    else:
+        sheet.row_dimensions[EXAMPLE_ROW].hidden = True
+    for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
+        sheet.row_dimensions[i].height = field['info'].get(
+            'excelforms_data_height', DEFAULT_DATA_HEIGHT)
 
         # jump to first error/required cell in row
         sheet.cell(row=i, column=RSTATUS_COL_NUM).value = (
@@ -434,7 +484,7 @@ def _populate_excel_sheet(book, sheet, geno, chromo, org, refs, resource_num):
     apply_style(sheet.row_dimensions[CSTATUS_ROW], cheadings_style)
     apply_style(sheet.row_dimensions[EXAMPLE_ROW], example_style)
     for (c,) in sheet[EDGE_RANGE]:
-        c.style = 'reco_edge'
+        c.style = 'xlf_edge'
 
     # trying to set the active cell (not working yet)
     select = "{col}{row}".format(col=DATA_FIRST_COL, row=DATA_FIRST_ROW)
@@ -443,36 +493,25 @@ def _populate_excel_sheet(book, sheet, geno, chromo, org, refs, resource_num):
 
     return cranges
 
-def _append_resource_ref_header(geno, refs, rnum):
-    #Add resource titles for all resources except the first one
-    if (rnum > 1):
-        refs.append((None, []))
-        resource_title = recombinant_language_text(geno['resources'][rnum-1]['title'])
-        refs.append(('resource_title', [resource_title]))
-
 def _append_field_ref_rows(refs, field, link):
     refs.append((None, []))
-    label = recombinant_language_text(field['label'])
+    label = h.excelforms_language_text(field['info'], 'label')
     refs.append(('title', [(link, label) if link else label]))
     refs.append(('attr', [
         _('ID'),
-        field['datastore_id']]))
-    if 'description' in field:
-        refs.append(('attr', [
-            _('Description'),
-            recombinant_language_text(field['description'])]))
-    if 'obligation' in field:  # for old yaml files (merged with validation in new ones)
-        refs.append(('attr', [
-            _('Obligation'),
-            recombinant_language_text(field['obligation'])]))
-    if 'validation' in field:
-        refs.append(('attr', [
-            _('Validation'),
-            recombinant_language_text(field['validation'])]))
-    if 'format_type' in field:  # for old yaml files (merged with validation in new ones)
-        refs.append(('attr', [
-            _('Format'),
-            recombinant_language_text(field['format_type'])]))
+        field['id']]))
+    desc = h.excelforms_language_text(field['info'], 'notes')
+    if desc:
+        refs.append(('attr', [_('Description'), desc]))
+# FIXME: add custom validation and validation description support
+#    if 'validation' in field:
+#        refs.append(('attr', [
+#            _('Validation'),
+#            recombinant_language_text(field['validation'])]))
+    refs.append(('attr', [
+        _('Format'),
+        field['type'],
+    ]))
 
 def _append_field_choices_rows(refs, choices, full_text_choices):
     refs.append(('choice heading', [_('Values')]))
@@ -498,17 +537,17 @@ def _populate_reference_sheet(sheet, resource, dd, refs):
         REF_HEADER1_ROW,
         REF_KEY_COL_NUM,
         h.get_translated(resource, 'name'),
-        'reco_header')
+        'xlf_header')
     apply_style(sheet.row_dimensions[REF_HEADER1_ROW], header1_style)
     fill_cell(
         sheet,
         REF_HEADER2_ROW,
         REF_KEY_COL_NUM,
         _('Reference'),
-        'reco_header2')
+        'xlf_header2')
     apply_style(sheet.row_dimensions[REF_HEADER2_ROW], header2_style)
     for (c,) in sheet[REF_EDGE_RANGE]:
-        c.style = 'reco_edge'
+        c.style = 'xlf_edge'
     sheet.row_dimensions[REF_HEADER1_ROW].height = REF_HEADER1_HEIGHT
     sheet.row_dimensions[REF_HEADER2_ROW].height = REF_HEADER2_HEIGHT
 
@@ -521,7 +560,7 @@ def _populate_reference_sheet(sheet, resource, dd, refs):
                 row_number,
                 2,
                 ref_line[0],
-                'reco_header')
+                'xlf_header')
             apply_style(sheet.row_dimensions[row_number], header1_style)
             sheet.row_dimensions[row_number].height = HEADER_HEIGHT
         else:
@@ -554,24 +593,24 @@ def _populate_reference_sheet(sheet, resource, dd, refs):
                     row_number,
                     REF_FIELD_NUM_COL_NUM,
                     field_count,
-                    'reco_ref_number')
+                    'xlf_ref_number')
                 title_cell = sheet.cell(row=row_number, column=REF_KEY_COL_NUM)
                 if link:
                     title_cell.hyperlink = link
-                title_cell.style = 'reco_ref_title'
+                title_cell.style = 'xlf_ref_title'
                 sheet.row_dimensions[row_number].height = REF_FIELD_TITLE_HEIGHT
                 field_count += 1
             elif style == 'choice':
                 pad_cell = sheet.cell(row=row_number, column=REF_KEY_COL_NUM - 1)
-                pad_cell.style = 'reco_example'
-                key_cell.style = 'reco_example'
-                value_cell.style = 'reco_example'
+                pad_cell.style = 'xlf_example'
+                key_cell.style = 'xlf_example'
+                value_cell.style = 'xlf_example'
             elif style == 'attr':
-                key_cell.style = 'reco_ref_attr'
-                value_cell.style = 'reco_ref_value'
+                key_cell.style = 'xlf_ref_attr'
+                value_cell.style = 'xlf_ref_value'
             elif style == 'choice heading':
-                key_cell.style = 'reco_ref_attr'
-                value_cell.style = 'reco_ref_value'
+                key_cell.style = 'xlf_ref_attr'
+                value_cell.style = 'xlf_ref_value'
                 sheet.row_dimensions[row_number].height = REF_CHOICE_HEADING_HEIGHT
 
             apply_style(sheet.row_dimensions[row_number], REF_PAPER_STYLE)
@@ -601,30 +640,31 @@ def _populate_excel_e_sheet(sheet, dd, cranges):
 
         crange = cranges.get(field['id'])
         fmla = None
-        if field['datastore_type'] == 'date':
+        if field['type'] == 'date':
             fmla = 'NOT(ISNUMBER({cell}+0))'
-        elif field['datastore_type'] == 'int':
+        elif field['type'] == 'int':
             fmla = 'NOT(IFERROR(INT({cell})=VALUE({cell}),FALSE))'
-        elif field['datastore_type'] == 'year':
-            fmla = (
-                'NOT(IFERROR(AND(INT({{cell}})={{cell}},'
-                '{{cell}}>={year_min},{{cell}}<={year_max}),FALSE))'
-                ).format(
-                    year_min=chromo.get('year_min', DEFAULT_YEAR_MIN),
-                    year_max=chromo.get('year_max', DEFAULT_YEAR_MAX))
-        elif field['datastore_type'] == 'numeric':
+# FIXME: add custom type support
+#        elif field['datastore_type'] == 'year':
+#            fmla = (
+#                'NOT(IFERROR(AND(INT({{cell}})={{cell}},'
+#                '{{cell}}>={year_min},{{cell}}<={year_max}),FALSE))'
+#                ).format(
+#                    year_min=chromo.get('year_min', DEFAULT_YEAR_MIN),
+#                    year_max=chromo.get('year_max', DEFAULT_YEAR_MAX))
+        elif field['type'] == 'numeric':
             fmla = 'NOT(ISNUMBER({cell}))'
-        elif field['datastore_type'] == 'money':
+        elif field['type'] == 'money':
             fmla = (
                 'NOT(IFERROR(ROUND(VALUE({cell}),2)=VALUE({cell}),FALSE))')
-        elif crange and field['datastore_type'] == '_text':
+        elif crange and field['type'] == '_text':
             # multiple comma-separated choices
             # validate by counting choices against matches
             fmla = (
                 'LEN(SUBSTITUTE({{cell}}," ",""))+1-SUMPRODUCT(--ISNUMBER('
                 'SEARCH(","&{r}&",",SUBSTITUTE(","&{{cell}}&","," ",""))),'
                 'LEN({r})+1)').format(r=crange)
-        elif crange and field.get('excel_full_text_choices', False):
+        elif crange and asbool(field['info'].get('excelforms_full_text_choices', False)):
             # 'code:text'-style choices, accept 'code' and 'code:anything'
             fmla = (
                 'COUNTIF({r},TRIM(LEFT({{cell}},FIND(":",{{cell}}&":")-1))&":*")=0'
@@ -633,28 +673,29 @@ def _populate_excel_e_sheet(sheet, dd, cranges):
             # single choice
             fmla = 'COUNTIF({r},TRIM({{cell}}))=0'.format(r=crange)
 
-        user_fmla = field.get('excel_error_formula')
+        user_fmla = field['info'].get('excelforms_error_formula')
         if user_fmla:
             if not fmla:
                 fmla = 'FALSE()'
             fmla = user_fmla.replace('{default_formula}', '(' + fmla + ')')
 
-        if field.get('excel_error_cell_filter_formula'):
-            fmla = fmla.replace(
-                '{cell}', '(' + field.get('excel_error_cell_filter_formula') + ')')
+        filter_fmla = field['info'].get('excelforms_error_cell_filter_formula')
+        if filter_fmla:
+            fmla = fmla.replace('{cell}', '(' + filter_fmla + ')')
 
-        if pk_field:
-            # repeated primary (composite) keys are errors
-            pk_fmla = 'SUMPRODUCT(' + ','.join(
-                "--(TRIM('{sheet}'!{col}{top}:{col}{{num}})"
-                "=TRIM('{sheet}'!{col}{{num}}))".format(
-                    sheet=chromo['resource_name'],
-                    col=get_column_letter(cn),
-                    top=DATA_FIRST_ROW)
-                for cn, f in template_cols_fields(chromo)
-                if f['datastore_id'] in chromo['datastore_primary_key']
-                ) +')>1'
-            fmla = ('OR(' + fmla + ',' + pk_fmla + ')') if fmla else pk_fmla
+# FIXME: enable custom primary keys
+#        if pk_field:
+#            # repeated primary (composite) keys are errors
+#            pk_fmla = 'SUMPRODUCT(' + ','.join(
+#                "--(TRIM('{sheet}'!{col}{top}:{col}{{num}})"
+#                "=TRIM('{sheet}'!{col}{{num}}))".format(
+#                    sheet=chromo['resource_name'],
+#                    col=get_column_letter(cn),
+#                    top=DATA_FIRST_ROW)
+#                for cn, f in template_cols_fields(chromo)
+#                if f['datastore_id'] in chromo['datastore_primary_key']
+#                ) +')>1'
+#            fmla = ('OR(' + fmla + ',' + pk_fmla + ')') if fmla else pk_fmla
 
         if not fmla:
             continue
@@ -675,7 +716,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges):
             sheet=chromo['resource_name'],
             col=col)
         fmla = '=NOT({cell}="")*(' + fmla + ')'
-        for i in xrange(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
+        for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
             try:
                 sheet.cell(row=i, column=col_num).value = fmla.format(
                     cell=cell,
@@ -695,7 +736,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges):
     if col is None:
         return  # no errors to report on!
 
-    for i in xrange(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
+    for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
         sheet.cell(row=i, column=RSTATUS_COL_NUM).value = (
             '=IFERROR(MATCH(TRUE,INDEX({colA}{row}:{colZ}{row}<>0,),)+{col0},0)'.format(
                 colA=DATA_FIRST_COL,
@@ -704,7 +745,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges):
                 row=i))
 
 
-def _populate_excel_r_sheet(sheet, chromo):
+def _populate_excel_r_sheet(sheet, resource, dd, form_sheet_title):
     """
     Populate the "required" calculation excel worksheet
 
@@ -718,11 +759,16 @@ def _populate_excel_r_sheet(sheet, chromo):
     data entry sheet
     """
     col = None
-    data_num_rows = chromo.get('excel_data_num_rows', DEFAULT_DATA_NUM_ROWS)
 
-    for col_num, field in template_cols_fields(chromo):
+    data_num_rows = int(
+        resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS)
+    )
+
+    for col_num, field in template_cols_fields(dd):
         fmla = field.get('excel_required_formula')
-        pk_field = field['datastore_id'] in chromo['datastore_primary_key']
+        pk_field = False
+# FIXME: primary key support
+#        pk_field = field['datastore_id'] in chromo['datastore_primary_key']
 
         if fmla:
             fmla = '={has_data}*({cell}="")*(' + fmla +')'
@@ -733,7 +779,7 @@ def _populate_excel_r_sheet(sheet, chromo):
 
         col = get_column_letter(col_num)
         cell = "'{sheet}'!{col}{{num}}".format(
-            sheet=chromo['resource_name'],
+            sheet=form_sheet_title,
             col=col)
 
         fmla_keys = set(
@@ -742,13 +788,13 @@ def _populate_excel_r_sheet(sheet, chromo):
         fmla_values = {}
         if fmla_keys:
             fmla_values = {
-                f['datastore_id']: "'{sheet}'!{col}{{num}}".format(
-                    sheet=chromo['resource_name'],
+                f['id']: "'{sheet}'!{col}{{num}}".format(
+                    sheet=form_sheet_title,
                     col=get_column_letter(cn))
-                for cn, f in template_cols_fields(chromo)
-                if f['datastore_id'] in fmla_keys}
+                for cn, f in template_cols_fields(dd)
+                if f['id'] in fmla_keys}
 
-        for i in xrange(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
+        for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
             sheet.cell(row=i, column=col_num).value = fmla.format(
                 cell=cell,
                 has_data='{col}{{num}}'.format(col=RPAD_COL),
@@ -765,7 +811,7 @@ def _populate_excel_r_sheet(sheet, chromo):
     if col is None:
         return  # no required columns
 
-    for i in xrange(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
+    for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
         sheet.cell(row=i, column=RPAD_COL_NUM).value = (
             "=SUMPRODUCT(LEN('{sheet}'!{colA}{row}:{colZ}{row}))>0".format(
                 sheet=chromo['resource_name'],
@@ -773,7 +819,7 @@ def _populate_excel_r_sheet(sheet, chromo):
                 colZ=col,
                 row=i))
 
-    for i in xrange(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
+    for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
         sheet.cell(row=i, column=RSTATUS_COL_NUM).value = (
             '=IFERROR(MATCH(TRUE,INDEX({colA}{row}:{colZ}{row}<>0,),)+{col0},0)'
             .format(
@@ -848,7 +894,9 @@ def org_title_lang_hack(title):
 def template_cols_fields(dd):
     ''' (col_num, field) ... for fields in template'''
     return enumerate(
-        (f for f in dd if f['id'] != '_id'), DATA_FIRST_COL_NUM)
+        (dict({'info':{}}, **f) for f in dd if f['id'] != '_id'),
+        DATA_FIRST_COL_NUM
+    )
 
 def _add_conditional_formatting(
         sheet, col_letter, resource_num, error_style, required_style,

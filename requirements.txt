@@ -1,4 +1,4 @@
 unicodecsv
-openpyxl==2.6.4
+openpyxl
 docopt
 ckanapi

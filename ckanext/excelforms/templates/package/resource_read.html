@@ -1,0 +1,14 @@
+{% ckan_extends %}
+
+{% import 'macros/form.html' as form %}
+
+{% block resource_tabledesigner %}
+  {{ super() }}
+  <div class="module-content">
+    <a href="{{ h.url_for(
+      'excelforms.template',
+      id=pkg.name,
+      resource_id=res.id)
+    }}">{{ _("Excel Template") }}</a>
+  </div>
+{% endblock %}

@@ -13,7 +13,7 @@ from ckanext.excelforms.errors import BadExcelData
 from ckanext.excelforms.read_excel import read_excel, get_records
 from ckanext.excelforms.write_excel import excel_template, append_data
 
-from io import StringIO
+from io import BytesIO
 
 log = getLogger(__name__)
 
@@ -97,7 +97,7 @@ def template(id, resource_id):
 
         append_data(book, record_data, dd)
 
-    blob = StringIO()
+    blob = BytesIO()
     book.save(blob)
     response = Response(blob.getvalue())
     response.content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
