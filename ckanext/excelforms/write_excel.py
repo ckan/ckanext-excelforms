@@ -120,13 +120,13 @@ def excel_template(resource, dd):
 
     sheet = book.create_sheet()
     _populate_excel_e_sheet(sheet, dd, cranges)
-    sheet.title = 'e'
+    sheet.title = 'e1'
     sheet.protection.enabled = True
     sheet.sheet_state = 'hidden'
 
     sheet = book.create_sheet()
     _populate_excel_r_sheet(sheet, resource, dd, form_sheet.title)
-    sheet.title = 'r'
+    sheet.title = 'r1'
     sheet.protection.enabled = True
     sheet.sheet_state = 'hidden'
     return book
