@@ -1,6 +1,7 @@
 import re
 
 import openpyxl
+from six import text_type
 
 from ckanext.excelforms.datatypes import canonicalize
 from ckanext.excelforms.errors import BadExcelData
@@ -27,20 +28,13 @@ def read_excel(f, file_contents=None):
             return
         sheet = wb[sheetname]
         rowiter = sheet.rows
-        organization_row = next(rowiter)
+        header_row = next(rowiter)
 
         label_row = next(rowiter)
         names_row = next(rowiter)
 
-        org_name = organization_row[0].value
-        if org_name and names_row[0].value != 'v3':
-            # v2 template
-            yield (
-                sheetname,
-                org_name,
-                [c.value for c in names_row],
-                _filter_bumf(rowiter, HEADER_ROWS_V2))
-            continue
+        if names_row[0].value != 'xlf_v1':
+            raise BadExcelData(_('Incorrect template version: {0}').format(names_row[0].value))
 
         cstatus_row = next(rowiter)
         example_row = next(rowiter)
@@ -59,7 +53,7 @@ def _filter_bumf(rowiter, header_rows):
     for row in rowiter:
         i += 1
         values = [
-            unescape(c.value) if isinstance(c.value, unicode) else c.value
+            unescape(c.value) if isinstance(c.value, text_type) else c.value
             for c in row]
         # return next non-empty row
         if not all(_is_bumf(v) for v in values):
@@ -76,7 +70,7 @@ def _is_bumf(value):
     :return: whether the value is filler
     :rtype: bool
     """
-    if type(value) in (unicode, str):
+    if isinstance(value, text_type):
         return value.strip() == ''
     return value is None
 
@@ -111,12 +105,12 @@ def get_records(rows, fields, primary_key_fields, choice_fields):
         try:
             records.append(
                 (n, dict((
-                    f['datastore_id'],
+                    f['id'],
                     canonicalize(
                         v,
-                        f['datastore_type'],
-                        f['datastore_id'] in primary_key_fields,
-                        choice_fields.get(f['datastore_id'], False)))
+                        f['type'],
+                        f['id'] in primary_key_fields,
+                        choice_fields.get(f['id'], False)))
                 for f, v in zip(fields, row))))
         except BadExcelData as e:
             raise BadExcelData(u'Row {0}:'.format(n) + u' ' + e.message)

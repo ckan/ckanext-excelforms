@@ -252,9 +252,8 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
         sheet.cell(row=i, column=1).value = None
 
     example = resource.get('excelforms_example_value')
-    if example:
-        sheet.merge_cells(EXAMPLE_MERGE)
-        fill_cell(sheet, EXAMPLE_ROW, 1, _('e.g.'), 'xlf_example')
+    sheet.merge_cells(EXAMPLE_MERGE)
+    fill_cell(sheet, EXAMPLE_ROW, 1, _('e.g.'), 'xlf_example')
 
     fill_cell(
         sheet,
@@ -280,10 +279,8 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
         'xlf_header')
 
     sheet.cell(row=CODE_ROW, column=1).value = 'xlf_v1'  # template version
-    # link to this extension in case someone is curious
-    sheet.cell(row=CODE_ROW, column=2).value = EXTENSION_GITHUB
     # record of resource id
-    sheet.cell(row=CODE_ROW, column=3).value = resource['id']
+    sheet.cell(row=CODE_ROW, column=2).value = resource['id']
 
 
     cheadings_dimensions = sheet.row_dimensions[CHEADINGS_ROW]

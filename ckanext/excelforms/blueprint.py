@@ -36,15 +36,15 @@ def upload(id, resource_id):
     """
     lc = ckanapi.LocalCKAN(username=g.user)
     dd = _get_data_dictionary(lc, resource_id)
-    dry_run = 'validate' in request.POST
+    dry_run = 'validate' in request.form
     try:
-        if request.POST['xls_update'] == '':
+        if not request.files['xls_update']:
             raise BadExcelData(_('You must provide a valid file'))
 
         _process_upload_file(
             lc,
             resource_id,
-            request.POST['xls_update'].file,
+            request.files['xls_update'],
             dd,
             dry_run)
 
@@ -63,7 +63,7 @@ def upload(id, resource_id):
     return h.redirect_to('dataset_resource.read', id=id, resource_id=resource_id)
 
 
-@excelforms.route('/dataset/<id>/excelforms/template-<resource_id>.xlsx', methods=['GET', 'POST'])
+@excelforms.route('/dataset/<id>/excelforms/template-<resource_id>.xlsx', methods=['GET'])
 def template(id, resource_id):
     """
     Generate excel template
@@ -112,16 +112,10 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
 
     raises BadExcelData on errors.
     """
-    owner_org = dataset['organization']['name']
-
-    expected_sheet_names = dict(
-        (resource['name'], resource['id'])
-        for resource in dataset['resources'])
-
     upload_data = read_excel(upload_file)
     total_records = 0
     try:
-        sheet_name, column_names, rows = next(upload_data)
+        sheet_name, res_id, column_names, rows = next(upload_data)
     except BadExcelData as e:
         raise e
     except Exception:
@@ -134,29 +128,36 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
             "uploaded. Please try copying your data into the latest "
             "version of the template and uploading again."))
 
+    if resource_id != res_id:
+        raise BadExcelData(
+            _("This template is for a different resource: {0}").format(res_id)
+        )
+
     # custom styles or other errors cause columns to be read
     # that actually have no data. strip them here to avoid error below
     while column_names and column_names[-1] is None:
         column_names.pop()
 
     # XXX
-    expected_columns = [f['datastore_id'] for f in bb['fields']]
+    expected_columns = [f['id'] for f in dd if f['id'] != '_id']
     if column_names != expected_columns:
         raise BadExcelData(
             _("This template is out of date. "
             "Please try copying your data into the latest "
             "version of the template and uploading again."))
 
-    pk = chromo.get('datastore_primary_key', [])
-    choice_fields = {
-        f['datastore_id']:
-            'full' if f.get('excel_full_text_choices') else True
-        for f in chromo['fields']
-        if ('choices' in f or 'choices_file' in f)}
+    pk = []
+#    pk = chromo.get('datastore_primary_key', [])
+    choice_fields = {}
+#    choice_fields = {
+#        f['datastore_id']:
+#            'full' if f.get('excel_full_text_choices') else True
+#        for f in chromo['fields']
+#        if ('choices' in f or 'choices_file' in f)}
 
     records = get_records(
         rows,
-        [f for f in chromo['fields'] if f.get('import_template_include', True)],
+        [f for f in dd if f['id'] != '_id'],
         pk,
         choice_fields)
     method = 'upsert' if pk else 'insert'
@@ -166,17 +167,20 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
     try:
         lc.action.datastore_upsert(
             method=method,
-            resource_id=expected_sheet_names[sheet_name],
+            resource_id=resource_id,
             records=[r[1] for r in records],
             dry_run=dry_run,
+            force=True,
             )
     except ValidationError as e:
         if 'info' in e.error_dict:
             # because, where else would you put the error text?
             # XXX improve this in datastore, please
             pgerror = e.error_dict['info']['orig'][0].decode('utf-8')
-        else:
+        elif 'records' in e.error_dict:
             pgerror = e.error_dict['records'][0]
+        else:
+            assert 0, e.error_dict
         if isinstance(pgerror, dict):
             pgerror = u'; '.join(
                 k + u': ' + u', '.join(v)
