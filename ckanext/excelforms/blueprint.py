@@ -160,7 +160,7 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
         [f for f in dd if f['id'] != '_id'],
         pk,
         choice_fields)
-    method = 'upsert' if pk else 'insert'
+    method = 'upsert' if any(f.get('info',{}).get('pk') for f in dd) else 'insert'
     total_records += len(records)
     if not records:
         raise BadExcelData(_("The template uploaded is empty"))

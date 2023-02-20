@@ -2,8 +2,7 @@ import importlib
 import os
 import uuid
 
-from paste.deploy.converters import asbool
-from ckan.plugins.toolkit import _, h
+from ckan.plugins.toolkit import _, h, asbool
 import ckan.plugins as p
 from ckan.lib.plugins import DefaultDatasetForm, DefaultTranslation
 
