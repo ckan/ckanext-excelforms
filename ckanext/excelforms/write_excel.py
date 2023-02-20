@@ -295,7 +295,7 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
         field_heading = h.excelforms_language_text(
             field['info'],
             'label'
-        ).strip()
+        ).strip() or field['id']
 # FIXME: returning None?
 #        cheadings_dimensions.height = max(
 #            cheadings_dimensions.height,
@@ -492,7 +492,7 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
 
 def _append_field_ref_rows(refs, field, link):
     refs.append((None, []))
-    label = h.excelforms_language_text(field['info'], 'label')
+    label = h.excelforms_language_text(field['info'], 'label').strip() or field['id']
     refs.append(('title', [(link, label) if link else label]))
     refs.append(('attr', [
         _('ID'),
