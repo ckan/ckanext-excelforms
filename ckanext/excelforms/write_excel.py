@@ -702,15 +702,15 @@ def _populate_excel_e_sheet(sheet, dd, cranges):
             if key != 'cell' and key != 'default_formula')
         if fmla_keys:
             fmla_values = {
-                f['datastore_id']: "'{sheet}'!{col}{{num}}".format(
-                    sheet=chromo['resource_name'],
+                f['id']: "'{sheet}'!{col}{{num}}".format(
+                    sheet=sheet.title,
                     col=get_column_letter(cn))
-                for cn, f in template_cols_fields(chromo)
-                if f['datastore_id'] in fmla_keys}
+                for cn, f in template_cols_fields(dd)
+                if f['id'] in fmla_keys}
 
         col = get_column_letter(col_num)
         cell = "'{sheet}'!{col}{{num}}".format(
-            sheet=chromo['resource_name'],
+            sheet=sheet.title,
             col=col)
         fmla = '=NOT({cell}="")*(' + fmla + ')'
         for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):

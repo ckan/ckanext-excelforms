@@ -23,15 +23,17 @@ DatastoreType = namedtuple(
 datastore_type = {
     'year': DatastoreType('year', True, 'General'),
     'month': DatastoreType('month', True, '00'),
+    'time': DatastoreType('date', False, 'HH:MM:SS'),
     'date': DatastoreType('date', False, 'yyyy-mm-dd'),
     'int': DatastoreType('int', True, 'General'),
     'bigint': DatastoreType('bigint', True, 'General'),
     'numeric': DatastoreType('numeric', False, 'General'),
     'money': DatastoreType( 'numeric', False, '$#,##0.00'),
     'text': DatastoreType('text', False, '@'),
-    'boolean': DatastoreType('boolean', False, '@'),
+    'bool': DatastoreType('boolean', False, '@'),
     '_text': DatastoreType('_text', False, '@'),
-    'timestamp': DatastoreType('timestamp', False, 'General'),
+    'timestamp': DatastoreType('timestamp', False, 'yyyy-mm-dd HH:MM:SS'),
+    'uuid': DatastoreType('uuid', False, 'General'),
 }
 
 
