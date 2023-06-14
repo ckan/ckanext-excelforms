@@ -26,6 +26,7 @@ datastore_type = {
     'time': DatastoreType('date', False, 'HH:MM:SS'),
     'date': DatastoreType('date', False, 'yyyy-mm-dd'),
     'int': DatastoreType('int', True, 'General'),
+    'int4': DatastoreType('int', True, 'General'),
     'bigint': DatastoreType('bigint', True, 'General'),
     'numeric': DatastoreType('numeric', False, 'General'),
     'money': DatastoreType( 'numeric', False, '$#,##0.00'),
@@ -34,6 +35,8 @@ datastore_type = {
     '_text': DatastoreType('_text', False, '@'),
     'timestamp': DatastoreType('timestamp', False, 'yyyy-mm-dd HH:MM:SS'),
     'uuid': DatastoreType('uuid', False, 'General'),
+    'json': DatastoreType('json', False, 'General'),
+    'email': DatastoreType('text', False, 'General'),
 }
 
 
