@@ -6,11 +6,11 @@
   {{ super() }}
   <div class="module-content">
     <form enctype="multipart/form-data" id="excelforms" class="form-horizontal"
-      method="post" action='{{ h.url_for(
+      method="post" action="{{ h.url_for(
       'excelforms.upload',
       id=pkg.name,
       resource_id=res.id)
-    }}'>
+    }}">
       <div "form-group control-medium {% if errors %}has-error{% endif %}">
         <a href="{{ h.url_for(
           'excelforms.template',
