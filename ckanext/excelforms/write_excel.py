@@ -105,6 +105,7 @@ def excel_template(resource, dd):
 
     book = openpyxl.Workbook()
     form_sheet = book.active
+    form_sheet.title = 'data'
     refs = []
 
     _build_styles(book, dd)
@@ -119,7 +120,7 @@ def excel_template(resource, dd):
     sheet.protection.enabled = True
 
     sheet = book.create_sheet()
-    _populate_excel_e_sheet(sheet, dd, cranges)
+    _populate_excel_e_sheet(sheet, dd, cranges, form_sheet.title)
     sheet.title = 'e1'
     sheet.protection.enabled = True
     sheet.sheet_state = 'hidden'
@@ -212,12 +213,6 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
 
     returns cranges dict of {datastore_id: reference_key_range}
     """
-    sheet.title = re.sub(
-        EXCEL_SHEET_NAME_INVALID_RE, '', str(
-            resource.get('excelforms_sheet_title')
-        )
-    ).strip()[:EXCEL_SHEET_NAME_MAX] or DEFAULT_SHEET_NAME
-
     cranges = {}
     data_num_rows = int(
         resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS)
@@ -623,7 +618,7 @@ def _populate_reference_sheet(sheet, resource, dd, refs):
     sheet.column_dimensions[REF_VALUE_COL].width = REF_VALUE_WIDTH
 
 
-def _populate_excel_e_sheet(sheet, dd, cranges):
+def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title):
     """
     Populate the "error" calculation excel worksheet
 
@@ -707,14 +702,14 @@ def _populate_excel_e_sheet(sheet, dd, cranges):
         if fmla_keys:
             fmla_values = {
                 f['id']: "'{sheet}'!{col}{{num}}".format(
-                    sheet=sheet.title,
+                    sheet=form_sheet_title,
                     col=get_column_letter(cn))
                 for cn, f in template_cols_fields(dd)
                 if f['id'] in fmla_keys}
 
         col = get_column_letter(col_num)
         cell = "'{sheet}'!{col}{{num}}".format(
-            sheet=sheet.title,
+            sheet=form_sheet_title,
             col=col)
         fmla = '=NOT({cell}="")*(' + fmla + ')'
         for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
