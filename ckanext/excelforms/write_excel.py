@@ -286,16 +286,18 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
     cheadings_dimensions = sheet.row_dimensions[CHEADINGS_ROW]
 
     choice_fields = {}
-# FIXME: enable choices in data dictionary
-#    choice_fields = dict(
-#        (f['datastore_id'], f['choices'])
-#        for f in recombinant_choice_fields(chromo['resource_name']))
 
     for col_num, field in template_cols_fields(dd):
         field_heading = h.excelforms_language_text(
             field['info'],
             'label'
         ).strip() or field['id']
+
+        if field['info'].get('tdtype') == 'choice':
+            choice_fields[field['id']] = [
+                (key, '') for key in  # no values for choices (yet)
+                h.tabledesigner_choice_list(field['info'].get('choices', ''))
+            ]
 # FIXME: returning None?
 #        cheadings_dimensions.height = max(
 #            cheadings_dimensions.height,
@@ -377,13 +379,15 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
             sheet=sheet.title, col=col_letter, row=CHEADINGS_ROW))
 
         if field['id'] in choice_fields:
-            full_text_choices = (
-                field['datastore_type'] != '_text' and field.get(
-                'excel_full_text_choices', False))
+            # full text choices not implemented
+            full_text_choices = False
+            #full_text_choices = (
+            #    field['type'] != '_text' and field['info'].get(
+            #    'excel_full_text_choices', False))
             ref1 = len(refs) + REF_FIRST_ROW
             max_choice_width = _append_field_choices_rows(
                 refs,
-                choice_fields[field['datastore_id']],
+                choice_fields[field['id']],
                 full_text_choices)
             refN = len(refs) + REF_FIRST_ROW - 2
 
@@ -415,21 +419,21 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
                     range=choice_range,
                     range_top=choice_range.split(':')[0],
                     **choice_values)
-            cranges[field['datastore_id']] = choice_range
+            cranges[field['id']] = choice_range
 
-            choices = [c[0] for c in choice_fields[field['datastore_id']]]
-            if field['datastore_type'] != '_text':
+            choices = [c[0] for c in choice_fields[field['id']]]
+            if field['type'] != '_text':
                 v = openpyxl.worksheet.datavalidation.DataValidation(
                     type="list",
                     formula1=user_choice_range or choice_range,
                     allow_blank=True)
                 v.errorTitle = u'Invalid choice'
-                valid_keys = u', '.join(unicode(c) for c in choices)
+                valid_keys = u', '.join(str(c) for c in choices)
                 if len(valid_keys) < 40:
-                    v.error = (u'Please enter one of the valid keys: '
+                    v.error = (u'Please enter one of the valid choices: '
                         + valid_keys)
                 else:
-                    v.error = (u'Please enter one of the valid keys shown on '
+                    v.error = (u'Please enter one of the valid choices shown on '
                         'sheet "reference" rows {0}-{1}'.format(ref1, refN))
                 sheet.add_data_validation(v)
                 v.add(validation_range)
@@ -516,10 +520,10 @@ def _append_field_choices_rows(refs, choices, full_text_choices):
     for key, value in choices:
         if full_text_choices:
             choice = [u'{0}: {1}'.format(key, value)]
-        elif unicode(key) == value:
-            choice = [unicode(key)]
+        elif str(key) == value:
+            choice = [str(key)]
         else:
-            choice = [unicode(key), value]
+            choice = [str(key), value]
         refs.append(('choice', choice))
         max_length = max(max_length, len(choice[0]))  # used for full_text_choices
     return estimate_width_from_length(max_length)
