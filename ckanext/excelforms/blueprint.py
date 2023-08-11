@@ -194,6 +194,10 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
             raise BadExcelData(_(u'Sheet {0} Row {1}:').format(
                 sheet_name, records[e.error_dict['_records_row']][0])
                 + u' ' + pgerror)
+        head, sep, rerr = pgerror.partition('\t')
+        if head == 'TAB-DELIMITED' and sep:
+            it = iter(rerr.split('\t'))
+            pgerror = '; '.join(k + ': ' + e for (k, e) in zip(it, it))
         raise BadExcelData(
             _(u"Error while importing data: {0}").format(
                 pgerror))
