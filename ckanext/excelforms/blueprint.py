@@ -190,14 +190,16 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
             # when we render this as an error in the form
             pgerror = re.sub(r'\nLINE \d+:', '', pgerror)
             pgerror = re.sub(r'\n *\^\n$', '', pgerror)
-        if '_records_row' in e.error_dict:
-            raise BadExcelData(_(u'Sheet {0} Row {1}:').format(
-                sheet_name, records[e.error_dict['_records_row']][0])
-                + u' ' + pgerror)
         head, sep, rerr = pgerror.partition('\t')
         if head == 'TAB-DELIMITED' and sep:
             it = iter(rerr.split('\t'))
             pgerror = '; '.join(k + ': ' + e for (k, e) in zip(it, it))
+        row = e.error_dict.get('records_row', e.error_dict.get('_records_row'))
+        if row is not None:
+            raise BadExcelData(
+                _(u'Data row {0}:').format(records[row][0])
+                + u' ' + pgerror
+            )
         raise BadExcelData(
             _(u"Error while importing data: {0}").format(
                 pgerror))
