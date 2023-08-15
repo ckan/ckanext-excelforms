@@ -1,0 +1,8 @@
+excelforms_datatables_buttons:
+  filters: rjsmin
+  output: ckanext-excelforms/%(version)s_excelforms_datatables_buttons.js
+  extra:
+    preload:
+    - base/main
+  contents:
+  - js/excelforms-datatables-buttons.js

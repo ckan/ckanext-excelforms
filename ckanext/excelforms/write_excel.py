@@ -97,10 +97,13 @@ TYPE_HERE_STYLE = {
     'Font': {'bold': True, 'size': 16}}
 
 
-def excel_template(resource, dd):
+def excel_template(resource, dd, records):
     """
     return an openpyxl.Workbook object containing the sheet and header fields
     for passed column definitions dd.
+
+    if records is not empty add a locked "_id" column and only allow editing
+    the records passed
     """
 
     book = openpyxl.Workbook()
@@ -109,7 +112,8 @@ def excel_template(resource, dd):
     refs = []
 
     _build_styles(book, dd)
-    cranges = _populate_excel_sheet(book, form_sheet, resource, dd, refs)
+    cranges = _populate_excel_sheet(
+        book, form_sheet, resource, dd, refs, records)
     form_sheet.protection.enabled = True
     form_sheet.protection.formatRows = False
     form_sheet.protection.formatColumns = False
@@ -120,32 +124,16 @@ def excel_template(resource, dd):
     sheet.protection.enabled = True
 
     sheet = book.create_sheet()
-    _populate_excel_e_sheet(sheet, dd, cranges, form_sheet.title)
+    _populate_excel_e_sheet(sheet, dd, cranges, form_sheet.title, records)
     sheet.title = 'e1'
     sheet.protection.enabled = True
     sheet.sheet_state = 'hidden'
 
     sheet = book.create_sheet()
-    _populate_excel_r_sheet(sheet, resource, dd, form_sheet.title)
+    _populate_excel_r_sheet(sheet, resource, dd, form_sheet.title, records)
     sheet.title = 'r1'
     sheet.protection.enabled = True
     sheet.sheet_state = 'hidden'
-    return book
-
-
-def append_data(book, record_data, chromo):
-
-    """
-    fills rows of an openpyxl.Workbook with selected data from a datastore resource
-    """
-    sheet = book[chromo['resource_name']]
-    current_row = DATA_FIRST_ROW
-    for record in record_data:
-        for col_num, field in template_cols_fields(chromo):
-            item = datastore_type_format(record[field['datastore_id']], field['datastore_type'])
-            sheet.cell(row=current_row, column=col_num).value = item
-        current_row += 1
-
     return book
 
 
@@ -204,7 +192,7 @@ def _build_styles(book, geno):
     build_named_style(book, 'xlf_ref_value', REF_VALUE_STYLE)
 
 
-def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
+def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
     """
     Format openpyxl sheet for the resource excel form
 
@@ -213,10 +201,14 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
 
     returns cranges dict of {datastore_id: reference_key_range}
     """
+    resource_num = 1  # only one supported for now
+
     cranges = {}
-    data_num_rows = int(
-        resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS)
-    )
+    if records:
+        data_num_rows = len(records)
+    else:
+        data_num_rows = int(
+            resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS))
 
     required_style = dict(
         dict(
@@ -282,7 +274,7 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
 
     choice_fields = {}
 
-    for col_num, field in template_cols_fields(dd):
+    for col_num, field in template_cols_fields(dd, records):
         field_heading = h.excelforms_language_text(
             field['info'],
             'label'
@@ -358,20 +350,22 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
 
         xl_format = datastore_type[field['type']].xl_format
         alignment = openpyxl.styles.Alignment(wrap_text=True)
-        col_style = NamedStyle(
-            name='xlf_{0}{1}'.format(resource_num, col_letter),
-            number_format=xl_format,
-            alignment=alignment,
-            protection=openpyxl.styles.Protection(locked=False))
-        book.add_named_style(col_style)
-        for (c,) in sheet[validation_range]:
-            c.style = col_style.name
+        if field['id'] != '_id':
+            col_style = NamedStyle(
+                name='xlf_{0}{1}'.format(resource_num, col_letter),
+                number_format=xl_format,
+                alignment=alignment,
+                protection=openpyxl.styles.Protection(locked=False))
+            book.add_named_style(col_style)
+            for (c,) in sheet[validation_range]:
+                c.style = col_style.name
         ex_cell = sheet.cell(row=EXAMPLE_ROW, column=col_num)
         ex_cell.number_format = xl_format
         ex_cell.alignment = alignment
 
-        _append_field_ref_rows(refs, field, "#'{sheet}'!{col}{row}".format(
-            sheet=sheet.title, col=col_letter, row=CHEADINGS_ROW))
+        if field['id'] != '_id':
+            _append_field_ref_rows(refs, field, "#'{sheet}'!{col}{row}".format(
+                sheet=sheet.title, col=col_letter, row=CHEADINGS_ROW))
 
         if field['id'] in choice_fields:
             # full text choices not implemented
@@ -433,12 +427,13 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
                 sheet.add_data_validation(v)
                 v.add(validation_range)
 
-        sheet.cell(row=CHEADINGS_ROW, column=col_num).hyperlink = (
-            '#reference!{colA}{row1}:{colZ}{rowN}'.format(
-                colA=REF_FIELD_NUM_COL,
-                row1=reference_row1,
-                colZ=REF_VALUE_COL,
-                rowN=len(refs) + REF_FIRST_ROW - 2))
+        if field['id'] != '_id':
+            sheet.cell(row=CHEADINGS_ROW, column=col_num).hyperlink = (
+                '#reference!{colA}{row1}:{colZ}{rowN}'.format(
+                    colA=REF_FIELD_NUM_COL,
+                    row1=reference_row1,
+                    colZ=REF_VALUE_COL,
+                    rowN=len(refs) + REF_FIRST_ROW - 2))
 
     _add_conditional_formatting(
         sheet,
@@ -487,7 +482,16 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, resource_num=1):
     sheet.sheet_view.selection[0].activeCell = select
     sheet.sheet_view.selection[0].sqref = select
 
+    # fill in existing records for editing
+    current_row = DATA_FIRST_ROW
+    for record in records:
+        for col_num, field in template_cols_fields(dd, records):
+            item = datastore_type_format(record[field['id']], field['type'])
+            sheet.cell(row=current_row, column=col_num).value = item
+        current_row += 1
+
     return cranges
+
 
 def _append_field_ref_rows(refs, field, link):
     refs.append((None, []))
@@ -618,7 +622,7 @@ def _populate_reference_sheet(sheet, resource, dd, refs):
     sheet.column_dimensions[REF_VALUE_COL].width = REF_VALUE_WIDTH
 
 
-def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title):
+def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title, records):
     """
     Populate the "error" calculation excel worksheet
 
@@ -629,9 +633,13 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title):
     in the corresponding cell on the data entry sheet.
     """
     col = None
-    data_num_rows = DEFAULT_DATA_NUM_ROWS
+    if records:
+        data_num_rows = len(records)
+    else:
+        data_num_rows = int(
+            resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS))
 
-    for col_num, field in template_cols_fields(dd):
+    for col_num, field in template_cols_fields(dd, records):
         #pk_field = field['datastore_id'] in chromo['datastore_primary_key']
 
         crange = cranges.get(field['id'])
@@ -704,7 +712,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title):
                 f['id']: "'{sheet}'!{col}{{num}}".format(
                     sheet=form_sheet_title,
                     col=get_column_letter(cn))
-                for cn, f in template_cols_fields(dd)
+                for cn, f in template_cols_fields(dd, records)
                 if f['id'] in fmla_keys}
 
         col = get_column_letter(col_num)
@@ -741,7 +749,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title):
                 row=i))
 
 
-def _populate_excel_r_sheet(sheet, resource, dd, form_sheet_title):
+def _populate_excel_r_sheet(sheet, resource, dd, form_sheet_title, records):
     """
     Populate the "required" calculation excel worksheet
 
@@ -756,11 +764,13 @@ def _populate_excel_r_sheet(sheet, resource, dd, form_sheet_title):
     """
     col = None
 
-    data_num_rows = int(
-        resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS)
-    )
+    if records:
+        data_num_rows = len(records)
+    else:
+        data_num_rows = int(
+            resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS))
 
-    for col_num, field in template_cols_fields(dd):
+    for col_num, field in template_cols_fields(dd, records):
         fmla = field.get('excel_required_formula')
         pk_field = False
 # FIXME: primary key support
@@ -887,10 +897,10 @@ def org_title_lang_hack(title):
         return title.split(u' | ')[-1]
     return title.split(u' | ')[0]
 
-def template_cols_fields(dd):
+def template_cols_fields(dd, records):
     ''' (col_num, field) ... for fields in template'''
     return enumerate(
-        (dict({'info':{}}, **f) for f in dd if f['id'] != '_id'),
+        (dict({'info':{}}, **f) for f in dd if records or f['id'] != '_id'),
         DATA_FIRST_COL_NUM
     )
 

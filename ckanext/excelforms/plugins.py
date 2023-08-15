@@ -23,7 +23,7 @@ class ExcelFormsPlugin(p.SingletonPlugin, DefaultTranslation):
     def update_config(self, config):
         # add our templates
         p.toolkit.add_template_directory(config, 'templates')
-        p.toolkit.add_public_directory(config, 'public')
+        p.toolkit.add_resource('assets', 'ckanext-excelforms')
 
     def get_blueprint(self):
         return blueprint.excelforms
