@@ -207,8 +207,7 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
     if records:
         data_num_rows = len(records)
     else:
-        data_num_rows = int(
-            resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS))
+        data_num_rows = int(DEFAULT_DATA_NUM_ROWS)
 
     required_style = dict(
         dict(
@@ -636,8 +635,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title, records):
     if records:
         data_num_rows = len(records)
     else:
-        data_num_rows = int(
-            resource.get('excelforms_data_num_rows', DEFAULT_DATA_NUM_ROWS))
+        data_num_rows = int(DEFAULT_DATA_NUM_ROWS)
 
     for col_num, field in template_cols_fields(dd, records):
         #pk_field = field['datastore_id'] in chromo['datastore_primary_key']

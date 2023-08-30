@@ -27,6 +27,7 @@ datastore_type = {
     'date': DatastoreType('date', False, 'yyyy-mm-dd'),
     'int': DatastoreType('int', True, 'General'),
     'int4': DatastoreType('int', True, 'General'),
+    'int8': DatastoreType('int', True, 'General'),
     'bigint': DatastoreType('bigint', True, 'General'),
     'numeric': DatastoreType('numeric', False, 'General'),
     'money': DatastoreType( 'numeric', False, '$#,##0.00'),
