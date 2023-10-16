@@ -416,7 +416,7 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
                     formula1=user_choice_range or choice_range,
                     allow_blank=True)
                 v.errorTitle = u'Invalid choice'
-                valid_keys = u', '.join(str(c) for c in choices)
+                valid_keys = u', '.join(unicode(c) for c in choices)
                 if len(valid_keys) < 40:
                     v.error = (u'Please enter one of the valid choices: '
                         + valid_keys)
@@ -518,10 +518,10 @@ def _append_field_choices_rows(refs, choices, full_text_choices):
     for key, value in choices:
         if full_text_choices:
             choice = [u'{0}: {1}'.format(key, value)]
-        elif str(key) == value:
-            choice = [str(key)]
+        elif unicode(key) == value:
+            choice = [unicode(key)]
         else:
-            choice = [str(key), value]
+            choice = [unicode(key), value]
         refs.append(('choice', choice))
         max_length = max(max_length, len(choice[0]))  # used for full_text_choices
     return estimate_width_from_length(max_length)
