@@ -171,7 +171,7 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
         [f for f in dd if update_action or f['id'] != '_id'],
         pk,
         choice_fields)
-    has_pk = any(f.get('info', {}).get('pk') for f in dd)
+    has_pk = any(f.get('info', {}).get('pkreq') == 'pk' for f in dd)
     method = 'update' if update_action else 'upsert' if has_pk else 'insert'
     total_records += len(records)
     if not records:
