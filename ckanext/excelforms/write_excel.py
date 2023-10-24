@@ -24,7 +24,7 @@ EXCEL_SHEET_NAME_INVALID_RE = r'[^a-zA-Z0-9]'
 
 HEADER_ROW, HEADER_HEIGHT = 1, 27
 CHEADINGS_ROW, CHEADINGS_HEIGHT = 2, 22
-CHEADINGS_MIN_WIDTH = 10
+CHEADINGS_MIN_WIDTH = 20
 LINE_HEIGHT = 15  # extra lines of text in same cell
 CODE_ROW = 3
 CSTATUS_ROW, CSTATUS_HEIGHT = 4, 6
@@ -642,7 +642,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title, records):
 
         crange = cranges.get(field['id'])
         fmla = None
-        if field['type'] == 'date':
+        if field['type'] == 'date' or field['type'] == 'timestamp':
             fmla = 'NOT(ISNUMBER({cell}+0))'
         elif field['type'] == 'int':
             fmla = 'NOT(IFERROR(INT({cell})=VALUE({cell}),FALSE))'

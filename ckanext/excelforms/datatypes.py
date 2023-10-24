@@ -34,6 +34,7 @@ datastore_type = {
     'text': DatastoreType('text', False, '@'),
     'bool': DatastoreType('boolean', False, '@'),
     '_text': DatastoreType('_text', False, '@'),
+    'date': DatastoreType('date', False, 'yyyy-mm-dd'),
     'timestamp': DatastoreType('timestamp', False, 'yyyy-mm-dd HH:MM:SS'),
     'uuid': DatastoreType('uuid', False, 'General'),
     'json': DatastoreType('json', False, 'General'),
