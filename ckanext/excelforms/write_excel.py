@@ -7,8 +7,6 @@ import re
 import textwrap
 import string
 
-from collections.abc import Mapping
-
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import FormulaRule
@@ -284,7 +282,7 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
 
         choices = h.tabledesigner_choices(field)
         if choices:
-            if isinstance(choices, Mapping):
+            if hasattr(choices, 'items'):
                 choice_fields[field['id']] = choices.items()
             else:
                 choice_fields[field['id']] = [(k, '') for k in choices]
