@@ -7,6 +7,8 @@ import re
 import textwrap
 import string
 
+from collections.abc import Mapping
+
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import FormulaRule
@@ -57,7 +59,8 @@ REF_VALUE_WIDTH = 114
 REF_CHOICE_HEADING_HEIGHT = 24
 REF_EDGE_RANGE = 'A1:A2'
 
-DEFAULT_SHEET_NAME = 'excelforms'
+DATA_SHEET_TITLE = 'data'
+
 EXTENSION_GITHUB = 'https://github.com/open-data/ckanext-excelforms'
 
 DEFAULT_YEAR_MIN, DEFAULT_YEAR_MAX = '2018-50', '2018+50'
@@ -108,7 +111,7 @@ def excel_template(resource, dd, records):
 
     book = openpyxl.Workbook()
     form_sheet = book.active
-    form_sheet.title = 'data'
+    form_sheet.title = DATA_SHEET_TITLE
     refs = []
 
     _build_styles(book, dd)
@@ -279,11 +282,12 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
             'label'
         ).strip() or field['id']
 
-        if field['info'].get('tdtype') == 'choice':
-            choice_fields[field['id']] = [
-                (key, '') for key in  # no values for choices (yet)
-                h.tabledesigner_choice_list(field['info'].get('choices', ''))
-            ]
+        choices = h.tabledesigner_choices(field)
+        if choices:
+            if isinstance(choices, Mapping):
+                choice_fields[field['id']] = choices.items()
+            else:
+                choice_fields[field['id']] = [(k, '') for k in choices]
 # FIXME: returning None?
 #        cheadings_dimensions.height = max(
 #            cheadings_dimensions.height,
@@ -347,7 +351,8 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
             row1=DATA_FIRST_ROW,
             rowN=DATA_FIRST_ROW + data_num_rows - 1)
 
-        xl_format = datastore_type[field['type']].xl_format
+        ct = h.tabledesigner_column_type(field)
+        xl_format = ct.excel_format
         alignment = openpyxl.styles.Alignment(wrap_text=True)
         if field['id'] != '_id':
             col_style = NamedStyle(
@@ -367,7 +372,6 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
                 sheet=sheet.title, col=col_letter, row=CHEADINGS_ROW))
 
         if field['id'] in choice_fields:
-            # full text choices not implemented
             full_text_choices = False
             #full_text_choices = (
             #    field['type'] != '_text' and field['info'].get(
@@ -416,7 +420,7 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
                     formula1=user_choice_range or choice_range,
                     allow_blank=True)
                 v.errorTitle = u'Invalid choice'
-                valid_keys = u', '.join(unicode(c) for c in choices)
+                valid_keys = u', '.join(choices)
                 if len(valid_keys) < 40:
                     v.error = (u'Please enter one of the valid choices: '
                         + valid_keys)
@@ -507,10 +511,26 @@ def _append_field_ref_rows(refs, field, link):
 #        refs.append(('attr', [
 #            _('Validation'),
 #            recombinant_language_text(field['validation'])]))
+    ct = h.tabledesigner_column_type(field)
     refs.append(('attr', [
         _('Format'),
-        field['type'],
+        _(ct.label),
     ]))
+    if ct.info.get('minimum'):
+        refs.append(('attr', [
+            _('Minimum'),
+            ct.info['minimum'],
+        ]))
+    if ct.info.get('maximum'):
+        refs.append(('attr', [
+            _('Maximum'),
+            ct.info['maximum'],
+        ]))
+    if ct.info.get('pattern'):
+        refs.append(('attr', [
+            _('Pattern'),
+            ct.info['pattern'],
+        ]))
 
 def _append_field_choices_rows(refs, choices, full_text_choices):
     refs.append(('choice heading', [_('Values')]))
@@ -518,10 +538,10 @@ def _append_field_choices_rows(refs, choices, full_text_choices):
     for key, value in choices:
         if full_text_choices:
             choice = [u'{0}: {1}'.format(key, value)]
-        elif unicode(key) == value:
-            choice = [unicode(key)]
+        elif key == value:
+            choice = [key]
         else:
-            choice = [unicode(key), value]
+            choice = [key, value]
         refs.append(('choice', choice))
         max_length = max(max_length, len(choice[0]))  # used for full_text_choices
     return estimate_width_from_length(max_length)
@@ -641,89 +661,70 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title, records):
         #pk_field = field['datastore_id'] in chromo['datastore_primary_key']
 
         crange = cranges.get(field['id'])
+        ct = h.tabledesigner_column_type(field)
+
         fmla = None
-        if field['type'] == 'date' or field['type'] == 'timestamp':
-            fmla = 'NOT(ISNUMBER({cell}+0))'
-        elif field['type'] == 'int':
-            fmla = 'NOT(IFERROR(INT({cell})=VALUE({cell}),FALSE))'
-# FIXME: add custom type support
-#        elif field['datastore_type'] == 'year':
-#            fmla = (
-#                'NOT(IFERROR(AND(INT({{cell}})={{cell}},'
-#                '{{cell}}>={year_min},{{cell}}<={year_max}),FALSE))'
-#                ).format(
-#                    year_min=chromo.get('year_min', DEFAULT_YEAR_MIN),
-#                    year_max=chromo.get('year_max', DEFAULT_YEAR_MAX))
-        elif field['type'] == 'numeric':
-            fmla = 'NOT(ISNUMBER({cell}))'
-        elif field['type'] == 'money':
-            fmla = (
-                'NOT(IFERROR(ROUND(VALUE({cell}),2)=VALUE({cell}),FALSE))')
-        elif crange and field['type'] == '_text':
-            # multiple comma-separated choices
-            # validate by counting choices against matches
-            fmla = (
-                'LEN(SUBSTITUTE({{cell}}," ",""))+1-SUMPRODUCT(--ISNUMBER('
-                'SEARCH(","&{r}&",",SUBSTITUTE(","&{{cell}}&","," ",""))),'
-                'LEN({r})+1)').format(r=crange)
-        elif crange and asbool(field['info'].get('excelforms_full_text_choices', False)):
-            # 'code:text'-style choices, accept 'code' and 'code:anything'
-            fmla = (
-                'COUNTIF({r},TRIM(LEFT({{cell}},FIND(":",{{cell}}&":")-1))&":*")=0'
-                ).format(r=crange)
-        elif crange:
-            # single choice
-            fmla = 'COUNTIF({r},TRIM({{cell}}))=0'.format(r=crange)
+        if hasattr(ct, 'excel_validate_rule'):
+            fmla = ct.excel_validate_rule()
 
-        user_fmla = field['info'].get('excelforms_error_formula')
-        if user_fmla:
-            if not fmla:
-                fmla = 'FALSE()'
-            fmla = user_fmla.replace('{default_formula}', '(' + fmla + ')')
+        for cc in ct.column_constraints():
+            if not hasattr(cc, 'excel_constraint_rule'):
+                continue
+            rule = cc.excel_constraint_rule()
+            if not rule:
+                continue
+            fmla = 'OR(' + fmla + ',' + rule + ')' if fmla else rule
 
-        filter_fmla = field['info'].get('excelforms_error_cell_filter_formula')
-        if filter_fmla:
-            fmla = fmla.replace('{cell}', '(' + filter_fmla + ')')
+#        user_fmla = field['info'].get('excelforms_error_formula')
+#        if user_fmla:
+#            if not fmla:
+#                fmla = 'FALSE()'
+#            fmla = user_fmla.replace('{default_formula}', '(' + fmla + ')')
+#
+#        filter_fmla = field['info'].get('excelforms_error_cell_filter_formula')
+#        if filter_fmla:
+#            fmla = fmla.replace('{cell}', '(' + filter_fmla + ')')
 
-# FIXME: enable custom primary keys
-#        if pk_field:
-#            # repeated primary (composite) keys are errors
-#            pk_fmla = 'SUMPRODUCT(' + ','.join(
-#                "--(TRIM('{sheet}'!{col}{top}:{col}{{num}})"
-#                "=TRIM('{sheet}'!{col}{{num}}))".format(
-#                    sheet=chromo['resource_name'],
-#                    col=get_column_letter(cn),
-#                    top=DATA_FIRST_ROW)
-#                for cn, f in template_cols_fields(chromo)
-#                if f['datastore_id'] in chromo['datastore_primary_key']
-#                ) +')>1'
-#            fmla = ('OR(' + fmla + ',' + pk_fmla + ')') if fmla else pk_fmla
+
+        if ct.info.get('pkreq') == 'pk':
+            # repeated primary (composite) keys are errors
+            pk_fmla = 'SUMPRODUCT(' + ','.join(
+                "--(TRIM('{sheet}'!{col}{top}:{col}{{_num_}})"
+                "=TRIM('{sheet}'!{col}{{_num_}}))".format(
+                    sheet=DATA_SHEET_TITLE,
+                    col=get_column_letter(cn),
+                    top=DATA_FIRST_ROW)
+                for cn, f in template_cols_fields(dd, records)
+                if f.get('info', {}).get('pkreq') == 'pk'
+                ) +')>1'
+            fmla = ('OR(' + fmla + ',' + pk_fmla + ')') if fmla else pk_fmla
 
         if not fmla:
             continue
 
         fmla_keys = set(
             key for (_i, key, _i, _i) in string.Formatter().parse(fmla)
-            if key != 'cell' and key != 'default_formula')
+            if key != '_value_' and key != '_choice_range_')
         if fmla_keys:
             fmla_values = {
-                f['id']: "'{sheet}'!{col}{{num}}".format(
-                    sheet=form_sheet_title,
+                f['id']: "'{sheet}'!{col}{{_num_}}".format(
+                    sheet=DATA_SHEET_TITLE,
                     col=get_column_letter(cn))
                 for cn, f in template_cols_fields(dd, records)
                 if f['id'] in fmla_keys}
 
         col = get_column_letter(col_num)
-        cell = "'{sheet}'!{col}{{num}}".format(
-            sheet=form_sheet_title,
+        cell = "'{sheet}'!{col}{{_num_}}".format(
+            sheet=DATA_SHEET_TITLE,
             col=col)
-        fmla = '=NOT({cell}="")*(' + fmla + ')'
+        fmla = '=NOT({_value_}="")*(' + fmla + ')'
         for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
             try:
                 sheet.cell(row=i, column=col_num).value = fmla.format(
-                    cell=cell,
-                    num='{num}',
-                    **fmla_values).format(num=i)
+                    _value_=cell,
+                    _choice_range_=crange,
+                    _num_='{_num_}',
+                    **fmla_values).format(_num_=i)
             except KeyError:
                 assert 0, (fmla, fmla_values)
 
@@ -770,13 +771,12 @@ def _populate_excel_r_sheet(sheet, resource, dd, form_sheet_title, records):
 
     for col_num, field in template_cols_fields(dd, records):
         fmla = field.get('excel_required_formula')
-        pk_field = False
-# FIXME: primary key support
-#        pk_field = field['datastore_id'] in chromo['datastore_primary_key']
+        pk_field = field['info'].get('pkreq') == 'pk'
+        required = field['info'].get('pkreq') == 'req'
 
         if fmla:
             fmla = '={has_data}*({cell}="")*(' + fmla +')'
-        elif pk_field or field.get('excel_required', False):
+        elif pk_field or required:
             fmla = '={has_data}*({cell}="")'
         else:
             continue
@@ -795,7 +795,7 @@ def _populate_excel_r_sheet(sheet, resource, dd, form_sheet_title, records):
                 f['id']: "'{sheet}'!{col}{{num}}".format(
                     sheet=form_sheet_title,
                     col=get_column_letter(cn))
-                for cn, f in template_cols_fields(dd)
+                for cn, f in template_cols_fields(dd, records)
                 if f['id'] in fmla_keys}
 
         for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
@@ -818,7 +818,7 @@ def _populate_excel_r_sheet(sheet, resource, dd, form_sheet_title, records):
     for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
         sheet.cell(row=i, column=RPAD_COL_NUM).value = (
             "=SUMPRODUCT(LEN('{sheet}'!{colA}{row}:{colZ}{row}))>0".format(
-                sheet=chromo['resource_name'],
+                sheet=DATA_SHEET_TITLE,
                 colA=DATA_FIRST_COL,
                 colZ=col,
                 row=i))
