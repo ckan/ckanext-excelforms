@@ -19,6 +19,11 @@ from ckan.plugins.toolkit import _, h, asbool
 from datetime import datetime
 from decimal import Decimal
 
+try:
+    unicode
+except NameError:
+    unicode = str
+
 EXCEL_SHEET_NAME_MAX = 31
 EXCEL_SHEET_NAME_INVALID_RE = r'[^a-zA-Z0-9]'
 
