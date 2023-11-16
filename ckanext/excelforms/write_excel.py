@@ -12,8 +12,6 @@ from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import NamedStyle
 
-from .datatypes import datastore_type
-
 from ckan.plugins.toolkit import _, h, asbool
 
 from datetime import datetime
@@ -497,6 +495,10 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
 def _append_field_ref_rows(refs, field, link):
     refs.append((None, []))
     label = h.excelforms_language_text(field['info'], 'label').strip() or field['id']
+    if field['info'].get('pkreq') == 'pk':
+        label += ' ' + _('(Primary Key)')
+    if field['info'].get('pkreq') == 'req':
+        label += ' ' + _('(Required)')
     refs.append(('title', [(link, label) if link else label]))
     refs.append(('attr', [
         _('ID'),
