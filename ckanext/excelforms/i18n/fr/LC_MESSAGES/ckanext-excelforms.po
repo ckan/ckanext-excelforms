@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ckanext-recombinant 2.0.0.dev0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2023-11-16 21:16+0000\n"
+"POT-Creation-Date: 2023-12-04 21:06+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -123,7 +123,7 @@ msgid "Edit in Excel"
 msgstr ""
 
 #: ckanext/excelforms/templates/package/resource_read.html:19
-msgid "Excel Template"
+msgid "Excel template"
 msgstr ""
 
 #: ckanext/excelforms/templates/package/resource_read.html:39
@@ -445,4 +445,3 @@ msgstr "Vérifier les erreurs"
 #~ "droit de la souris, en sélectionnant "
 #~ "<kbd>Collage spécial</kbd> et ensuite, en "
 #~ "cliquant sur <kbd>Texte Unicode</kbd>."
-
