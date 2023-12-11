@@ -269,6 +269,9 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
 
 
     cheadings_dimensions = sheet.row_dimensions[CHEADINGS_ROW]
+    cheadings_default_height = cheadings_dimensions.height or \
+            sheet.sheet_format.customHeight or \
+            sheet.sheet_format.defaultRowHeight
 
     choice_fields = {}
 
@@ -284,10 +287,9 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
                 choice_fields[field['id']] = choices.items()
             else:
                 choice_fields[field['id']] = [(k, '') for k in choices]
-# FIXME: returning None?
-#        cheadings_dimensions.height = max(
-#            cheadings_dimensions.height,
-#            field_heading.count('\n') * LINE_HEIGHT + CHEADINGS_HEIGHT)
+        cheadings_dimensions.height = max(
+           cheadings_default_height + CHEADINGS_HEIGHT,
+           field_heading.count('\n') * LINE_HEIGHT + CHEADINGS_HEIGHT)
 
         col_heading_style = 'xlf_cheading'
 # FIXME: enable column styling from data dictionary
