@@ -269,9 +269,9 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
 
 
     cheadings_dimensions = sheet.row_dimensions[CHEADINGS_ROW]
-    cheadings_default_height = cheadings_dimensions.height if cheadings_dimensions.height \
-            else sheet.sheet_format.customHeight if sheet.sheet_format.customHeight \
-            else sheet.sheet_format.defaultRowHeight
+    cheadings_default_height = cheadings_dimensions.height or \
+            sheet.sheet_format.customHeight or \
+            sheet.sheet_format.defaultRowHeight
 
     choice_fields = {}
 
