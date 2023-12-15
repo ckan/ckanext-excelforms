@@ -64,7 +64,7 @@ msgstr "Le modèle que vous avez soumis est vide"
 
 #: ckanext/excelforms/blueprint.py:212
 msgid "Data row {0}:"
-msgstr ""
+msgstr "Rangée de données {0} :"
 
 #: ckanext/excelforms/blueprint.py:216
 msgid "Error while importing data: {0}"
@@ -72,7 +72,7 @@ msgstr "Erreur lors de l’importation des données: {0}"
 
 #: ckanext/excelforms/read_excel.py:37
 msgid "Incorrect template version: {0}"
-msgstr ""
+msgstr "Version incorrecte du modèle : {0}"
 
 #: ckanext/excelforms/write_excel.py:241
 msgid "e.g."
@@ -100,15 +100,15 @@ msgstr "Format"
 
 #: ckanext/excelforms/write_excel.py:521
 msgid "Minimum"
-msgstr ""
+msgstr "Minimum"
 
 #: ckanext/excelforms/write_excel.py:526
 msgid "Maximum"
-msgstr ""
+msgstr "Maximum"
 
 #: ckanext/excelforms/write_excel.py:531
 msgid "Pattern"
-msgstr ""
+msgstr "Modèle"
 
 #: ckanext/excelforms/write_excel.py:536
 msgid "Values"
@@ -120,11 +120,11 @@ msgstr "Référence"
 
 #: ckanext/excelforms/templates/datatables/datatables_view.html:7
 msgid "Edit in Excel"
-msgstr ""
+msgstr "Modifier dans Excel"
 
 #: ckanext/excelforms/templates/package/resource_read.html:19
 msgid "Excel template"
-msgstr ""
+msgstr "Modèle Excel"
 
 #: ckanext/excelforms/templates/package/resource_read.html:39
 msgid "Submit"
