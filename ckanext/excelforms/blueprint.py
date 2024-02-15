@@ -24,10 +24,7 @@ excelforms = Blueprint('excelforms', __name__)
 
 
 def _get_data_dictionary(lc, resource_id):
-    table = lc.action.datastore_search(
-        resource_id=resource_id,
-        limit=0,
-        include_total=False)
+    table = lc.action.datastore_info(id=resource_id)
     return table['fields']
 
 

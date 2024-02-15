@@ -497,9 +497,9 @@ def _populate_excel_sheet(book, sheet, resource, dd, refs, records):
 def _append_field_ref_rows(refs, field, link):
     refs.append((None, []))
     label = h.excelforms_language_text(field['info'], 'label').strip() or field['id']
-    if field['info'].get('pkreq') == 'pk':
+    if field.get('tdpkreq') == 'pk':
         label += ' ' + _('(Primary Key)')
-    if field['info'].get('pkreq') == 'req':
+    if field.get('tdpkreq') == 'req':
         label += ' ' + _('(Required)')
     refs.append(('title', [(link, label) if link else label]))
     refs.append(('attr', [
@@ -518,20 +518,20 @@ def _append_field_ref_rows(refs, field, link):
         _('Format'),
         _(ct.label),
     ]))
-    if ct.info.get('minimum'):
+    if ct.field.get('tdminimum'):
         refs.append(('attr', [
             _('Minimum'),
-            ct.info['minimum'],
+            ct.field['tdminimum'],
         ]))
-    if ct.info.get('maximum'):
+    if ct.field.get('tdmaximum'):
         refs.append(('attr', [
             _('Maximum'),
-            ct.info['maximum'],
+            ct.field['tdmaximum'],
         ]))
-    if ct.info.get('pattern'):
+    if ct.field.get('tdpattern'):
         refs.append(('attr', [
             _('Pattern'),
-            ct.info['pattern'],
+            ct.field['tdpattern'],
         ]))
 
 def _append_field_choices_rows(refs, choices, full_text_choices):
@@ -688,7 +688,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title, records):
 #            fmla = fmla.replace('{cell}', '(' + filter_fmla + ')')
 
 
-        if ct.info.get('pkreq') == 'pk':
+        if ct.field.get('tdpkreq') == 'pk':
             # repeated primary (composite) keys are errors
             pk_fmla = 'SUMPRODUCT(' + ','.join(
                 "--(TRIM('{sheet}'!{col}{top}:{col}{{_num_}})"
@@ -697,7 +697,7 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title, records):
                     col=get_column_letter(cn),
                     top=DATA_FIRST_ROW)
                 for cn, f in template_cols_fields(dd, records)
-                if f.get('info', {}).get('pkreq') == 'pk'
+                if f.get('tdpkreq') == 'pk'
                 ) +')>1'
             fmla = ('OR(' + fmla + ',' + pk_fmla + ')') if fmla else pk_fmla
 
@@ -773,8 +773,8 @@ def _populate_excel_r_sheet(sheet, resource, dd, form_sheet_title, records):
 
     for col_num, field in template_cols_fields(dd, records):
         fmla = field.get('excel_required_formula')
-        pk_field = field['info'].get('pkreq') == 'pk'
-        required = field['info'].get('pkreq') == 'req'
+        pk_field = field.get('tdpkreq') == 'pk'
+        required = field.get('tdpkreq') == 'req'
 
         if fmla:
             fmla = '={has_data}*({cell}="")*(' + fmla +')'
