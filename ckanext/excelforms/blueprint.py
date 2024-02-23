@@ -102,7 +102,6 @@ def template(id, resource_id):
     blob = BytesIO()
     book.save(blob)
     response = Response(blob.getvalue())
-    # (canada fork only): modify response headers for Microsoft Edge
     content_type = EXCEL_CT
     disposition_type = 'inline'
     user_agent_legacy = request.get('headers', {}).get('User-Agent')
@@ -112,6 +111,8 @@ def template(id, resource_id):
         "Edg/" in user_agent or
         "EdgA/" in user_agent
         ):
+            # force the XLSX file to be downloaded in MS Edge,
+            # and not open in Office Apps Online.
             content_type = 'application/octet-stream'
             disposition_type = 'attachment'
     response.content_type = content_type
