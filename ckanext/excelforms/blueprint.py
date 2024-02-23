@@ -65,6 +65,29 @@ def upload(id, resource_id):
         'dataset_resource.read', id=id, resource_id=resource_id)
 
 
+def _xlsx_response_headers():
+    """
+    Returns tuple of content type and disposition type.
+
+    If the request is from MS Edge user agent, we force the XLSX
+    download to prevent Edge from cowboying into Office Apps Online
+    """
+    content_type = EXCEL_CT
+    disposition_type = 'inline'
+    user_agent_legacy = getattr(request, 'headers', {}).get('User-Agent')
+    user_agent = getattr(request, 'headers', {}).get('Sec-CH-UA', user_agent_legacy)
+    if user_agent and (
+        "Microsoft Edge" in user_agent or
+        "Edg/" in user_agent or
+        "EdgA/" in user_agent
+        ):
+            # force the XLSX file to be downloaded in MS Edge,
+            # and not open in Office Apps Online.
+            content_type = 'application/octet-stream'
+            disposition_type = 'attachment'
+    return content_type, disposition_type
+
+
 @excelforms.route(
     '/dataset/<id>/excelforms/template-<resource_id>.xlsx', methods=['GET'])
 def template(id, resource_id):
@@ -102,19 +125,7 @@ def template(id, resource_id):
     blob = BytesIO()
     book.save(blob)
     response = Response(blob.getvalue())
-    content_type = EXCEL_CT
-    disposition_type = 'inline'
-    user_agent_legacy = request.get('headers', {}).get('User-Agent')
-    user_agent = request.get('headers', {}).get('Sec-CH-UA', user_agent_legacy)
-    if user_agent and (
-        "Microsoft Edge" in user_agent or
-        "Edg/" in user_agent or
-        "EdgA/" in user_agent
-        ):
-            # force the XLSX file to be downloaded in MS Edge,
-            # and not open in Office Apps Online.
-            content_type = 'application/octet-stream'
-            disposition_type = 'attachment'
+    content_type, disposition_type = _xlsx_response_headers()
     response.content_type = content_type
     response.headers['Content-Disposition'] = (
         '{}; filename="template_{0}.xlsx"'.format(disposition_type, resource_id))
