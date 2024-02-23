@@ -1,43 +1,10 @@
 from six import text_type
 
-from collections import namedtuple
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from ckanext.excelforms.errors import BadExcelData
-
-
-# Codifies data store types available in recombinant-tables JSON
-# specification:
-#    'tag': the content of the datastore_type value
-#    'whole_number': if content is a whole number, whether to retain
-#        trailing .0 padding for xlrd float coercion
-#    'default': default value to use if blank
-#    'xl_format': Excel custom format string to apply
-
-DatastoreType = namedtuple(
-        'DataStoreType',
-        ['tag', 'whole_number', 'xl_format'])
-
-datastore_type = {
-    'year': DatastoreType('year', True, 'General'),
-    'month': DatastoreType('month', True, '00'),
-    'time': DatastoreType('date', False, 'HH:MM:SS'),
-    'date': DatastoreType('date', False, 'yyyy-mm-dd'),
-    'int': DatastoreType('int', True, 'General'),
-    'int4': DatastoreType('int', True, 'General'),
-    'bigint': DatastoreType('bigint', True, 'General'),
-    'numeric': DatastoreType('numeric', False, 'General'),
-    'money': DatastoreType( 'numeric', False, '$#,##0.00'),
-    'text': DatastoreType('text', False, '@'),
-    'bool': DatastoreType('boolean', False, '@'),
-    '_text': DatastoreType('_text', False, '@'),
-    'timestamp': DatastoreType('timestamp', False, 'yyyy-mm-dd HH:MM:SS'),
-    'uuid': DatastoreType('uuid', False, 'General'),
-    'json': DatastoreType('json', False, 'General'),
-    'email': DatastoreType('text', False, 'General'),
-}
 
 
 def canonicalize(
@@ -66,8 +33,6 @@ def canonicalize(
 
     Raises BadExcelData on formula cells
     """
-    dtype = datastore_type[dstore_tag]
-
     if dirty is None:
         # use common value for blank cells
         dirty = u""
@@ -90,7 +55,7 @@ def canonicalize(
             return []
         return [s.strip() for s in text_type(dirty).split(',')]
 
-    if dtype.whole_number:
+    if 'int' in dstore_tag:  # bigint, int4 etc.
         canon = re.sub(r'[$,\s]', '', text_type(dirty))
         try:
             d = Decimal(canon)

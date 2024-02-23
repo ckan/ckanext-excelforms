@@ -1,0 +1,11 @@
+{% ckan_extends %}
+{% block page %}
+  {{ super() }}
+  {% if resource.url_type == 'tabledesigner' %}
+    <div
+      data-module="excelforms_datatables_edit"
+      data-edit-text="{{ _('Edit in Excel') }}"
+      data-edit-url="{{ h.url_for('excelforms.template', id=package.name, resource_id=resource.id) }}"
+    ></div>
+  {% endif %}
+{% endblock %}

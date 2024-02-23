@@ -1,34 +1,35 @@
 import re
-from collections import OrderedDict
-import simplejson as json
 
 from logging import getLogger
 
 from flask import Response, Blueprint
-from ckan.plugins.toolkit import (_, config, asbool, aslist, render,
-    request, h, abort, g)
+from ckan.plugins.toolkit import (
+    _, config, asbool, request, h, abort, g
+)
 from ckan.logic import ValidationError, NotAuthorized
 
 from ckanext.excelforms.errors import BadExcelData
 from ckanext.excelforms.read_excel import read_excel, get_records
-from ckanext.excelforms.write_excel import excel_template, append_data
+from ckanext.excelforms.write_excel import excel_template
 
 from io import BytesIO
 
-log = getLogger(__name__)
-
 import ckanapi
+
+EXCEL_CT = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+log = getLogger(__name__)
 
 excelforms = Blueprint('excelforms', __name__)
 
+
 def _get_data_dictionary(lc, resource_id):
-    table = lc.action.datastore_search(
-        resource_id=resource_id,
-        limit=0,
-        include_total=False)
+    table = lc.action.datastore_info(id=resource_id)
     return table['fields']
 
-@excelforms.route('/dataset/<id>/excelforms/<resource_id>/upload', methods=['POST'])
+
+@excelforms.route(
+    '/dataset/<id>/excelforms/<resource_id>/upload', methods=['POST'])
 def upload(id, resource_id):
     """
     View for downloading Excel templates and
@@ -60,48 +61,49 @@ def upload(id, resource_id):
     except BadExcelData as e:
         h.flash_error(e.message)
 
-    return h.redirect_to('dataset_resource.read', id=id, resource_id=resource_id)
+    return h.redirect_to(
+        'dataset_resource.read', id=id, resource_id=resource_id)
 
 
-@excelforms.route('/dataset/<id>/excelforms/template-<resource_id>.xlsx', methods=['GET'])
+@excelforms.route(
+    '/dataset/<id>/excelforms/template-<resource_id>.xlsx', methods=['GET'])
 def template(id, resource_id):
     """
     Generate excel template
 
-    POST requests to this endpoint contain primary keys of records that are to be included in the excel file
+    POST requests to this endpoint contain primary keys of records that are
+    to be included in the excel file
     Parameters:
-        bulk-template -> an array of strings, each string contains primary keys separated by commas
+        _id -> an array of strings, each string contains an _id column value
     """
 
     lc = ckanapi.LocalCKAN(username=g.user)
     dd = _get_data_dictionary(lc, resource_id)
     resource = lc.action.resource_show(id=resource_id)
 
-    book = excel_template(resource, dd)
+    _ids = request.params.getlist('_id')
+    records = []
 
-    if request.method == 'POST':
-        filters = {}
-        primary_keys = request.POST.getall('bulk-template')
+    if _ids:
+        filters = {'_id': _ids}
 
-        record_data = []
+        try:
+            result = lc.action.datastore_search(
+                resource_id=resource_id,
+                filters=filters,
+            )
+        except NotAuthorized:
+            return abort(403, _("Not authorized"))
 
-        for keys in primary_keys:
-            temp = keys.split(",")
-            for f, pkf in zip(temp, pk_fields):
-                filters[pkf['datastore_id']] = f
-            try:
-                result = lc.action.datastore_search(resource_id=resource_id,filters = filters)
-            except NotAuthorized:
-                abort(403, _("Not authorized"))
-            record_data += result['records']
+        records = result['records']
 
-        append_data(book, record_data, dd)
+    book = excel_template(resource, dd, records)
 
     blob = BytesIO()
     book.save(blob)
     response = Response(blob.getvalue())
     # (canada fork only): modify response headers for Microsoft Edge
-    content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    content_type = EXCEL_CT
     disposition_type = 'inline'
     user_agent_legacy = request.get('headers', {}).get('User-Agent')
     user_agent = request.get('headers', {}).get('Sec-CH-UA', user_agent_legacy)
@@ -135,10 +137,11 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
         if asbool(config.get('debug', False)):
             # on debug we want the real error
             raise
-        raise BadExcelData(
-            _("The server encountered a problem processing the file "
+        raise BadExcelData(_(
+            "The server encountered a problem processing the file "
             "uploaded. Please try copying your data into the latest "
-            "version of the template and uploading again."))
+            "version of the template and uploading again."
+        ))
 
     if resource_id != res_id:
         raise BadExcelData(
@@ -150,13 +153,18 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
     while column_names and column_names[-1] is None:
         column_names.pop()
 
-    # XXX
     expected_columns = [f['id'] for f in dd if f['id'] != '_id']
+    update_action = False
+    if column_names[:1] == ['_id']:
+        update_action = True
+        del column_names[0]
+
     if column_names != expected_columns:
-        raise BadExcelData(
-            _("This template is out of date. "
+        raise BadExcelData(_(
+            "This template is out of date. "
             "Please try copying your data into the latest "
-            "version of the template and uploading again."))
+            "version of the template and uploading again."
+        ))
 
     pk = []
 #    pk = chromo.get('datastore_primary_key', [])
@@ -169,10 +177,11 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
 
     records = get_records(
         rows,
-        [f for f in dd if f['id'] != '_id'],
+        [f for f in dd if update_action or f['id'] != '_id'],
         pk,
         choice_fields)
-    method = 'upsert' if any(f.get('info',{}).get('pk') for f in dd) else 'insert'
+    has_pk = any(f.get('info', {}).get('pkreq') == 'pk' for f in dd)
+    method = 'update' if update_action else 'upsert' if has_pk else 'insert'
     total_records += len(records)
     if not records:
         raise BadExcelData(_("The template uploaded is empty"))
@@ -202,10 +211,16 @@ def _process_upload_file(lc, resource_id, upload_file, dd, dry_run):
             # when we render this as an error in the form
             pgerror = re.sub(r'\nLINE \d+:', '', pgerror)
             pgerror = re.sub(r'\n *\^\n$', '', pgerror)
-        if '_records_row' in e.error_dict:
-            raise BadExcelData(_(u'Sheet {0} Row {1}:').format(
-                sheet_name, records[e.error_dict['_records_row']][0])
-                + u' ' + pgerror)
+        head, sep, rerr = pgerror.partition('\t')
+        if head == 'TAB-DELIMITED' and sep:
+            it = iter(rerr.split('\t'))
+            pgerror = '; '.join(k + ': ' + e for (k, e) in zip(it, it))
+        row = e.error_dict.get('records_row', e.error_dict.get('_records_row'))
+        if row is not None:
+            raise BadExcelData(
+                _(u'Data row {0}:').format(records[row][0])
+                + u' ' + pgerror
+            )
         raise BadExcelData(
             _(u"Error while importing data: {0}").format(
                 pgerror))
