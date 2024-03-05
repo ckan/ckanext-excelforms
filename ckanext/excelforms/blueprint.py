@@ -128,7 +128,7 @@ def template(id, resource_id):
     content_type, disposition_type = _xlsx_response_headers()
     response.content_type = content_type
     response.headers['Content-Disposition'] = (
-        '{}; filename="template_{0}.xlsx"'.format(disposition_type, resource_id))
+        '{0}; filename="template_{1}.xlsx"'.format(disposition_type, resource_id))
     return response
 
 
