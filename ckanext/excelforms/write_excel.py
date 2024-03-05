@@ -720,15 +720,17 @@ def _populate_excel_e_sheet(sheet, dd, cranges, form_sheet_title, records):
             sheet=DATA_SHEET_TITLE,
             col=col)
         fmla = '=NOT({_value_}="")*(' + fmla + ')'
+        # allow escaped {{}} to pass through two format()s
+        fmlad = fmla.replace('{{', '{{{{').replace('}}', '}}}}')
         for i in range(DATA_FIRST_ROW, DATA_FIRST_ROW + data_num_rows):
             try:
-                sheet.cell(row=i, column=col_num).value = fmla.format(
+                sheet.cell(row=i, column=col_num).value = fmlad.format(
                     _value_=cell,
                     _choice_range_=crange,
                     _num_='{_num_}',
                     **fmla_values).format(_num_=i)
-            except KeyError:
-                assert 0, (fmla, fmla_values)
+            except KeyError as err:
+                assert 0, (fmla, fmla_values, err)
 
         sheet.cell(row=CSTATUS_ROW, column=col_num).value = (
             '=IFERROR(MATCH(TRUE,INDEX({col}{row1}:{col}{rowN}<>0,),)+{row0},0)'
