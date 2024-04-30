@@ -3,43 +3,45 @@
 {% import 'macros/form.html' as form %}
 
 {% block resource_additional_information %}
-  <div class="module-content">
-    <form enctype="multipart/form-data" id="excelforms" class="form-horizontal"
-      method="post" action="{{ h.url_for(
-      'excelforms.upload',
-      id=pkg.name,
-      resource_id=res.id)
-    }}">
-      <div class="form-group control-medium {% if errors %}has-error{% endif %}">
-        <a class="btn btn-default" role="button"
-          href="{{ h.url_for(
-          'excelforms.template',
-          id=pkg.name,
-          resource_id=res.id)
-        }}"><i class="fa fa-download"></i>{{ _("Download Excel template") }}</a>
-        <input required
-          class="form-control"
-          style="height: auto"
-          type="file"
-          name="xls_update"
-          id="xls_update"
-          oninvalid="setCustomValidity(' {{ _('You must provide a valid file') }} ')" onchange="setCustomValidity('')"
-          accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-        {% if errors %}
-          {% block errors %}
-            <div class="span-3 text-danger">
-              {% for error in errors %}
-                {{ error }}
-              {% endfor %}
-            </div>
-          {% endblock %}
-        {% endif %}
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary" name="upload">{{_('Upload template data')}}</button>
-        <button type="submit" class="btn btn-default" name="validate">{{_('Check for Errors')}}</button>
-      </div>
-      </div>
-    </form>
-  </div>
+  {% if h.check_access('datastore_upsert', {'resource_id': res.id}) %}
+    <div class="module-content">
+      <form enctype="multipart/form-data" id="excelforms" class="form-horizontal"
+        method="post" action="{{ h.url_for(
+        'excelforms.upload',
+        id=pkg.name,
+        resource_id=res.id)
+      }}">
+        <div class="form-group control-medium {% if errors %}has-error{% endif %}">
+          <a class="btn btn-default" role="button"
+            href="{{ h.url_for(
+            'excelforms.template',
+            id=pkg.name,
+            resource_id=res.id)
+          }}"><i class="fa fa-download"></i>{{ _("Download Excel template") }}</a>
+          <input required
+            class="form-control"
+            style="height: auto"
+            type="file"
+            name="xls_update"
+            id="xls_update"
+            oninvalid="setCustomValidity(' {{ _('You must provide a valid file') }} ')" onchange="setCustomValidity('')"
+            accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          {% if errors %}
+            {% block errors %}
+              <div class="span-3 text-danger">
+                {% for error in errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endblock %}
+          {% endif %}
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" name="upload">{{_('Upload template data')}}</button>
+          <button type="submit" class="btn btn-default" name="validate">{{_('Check for Errors')}}</button>
+        </div>
+        </div>
+      </form>
+    </div>
+  {% endif %}
   {{ super() }}
 {% endblock %}

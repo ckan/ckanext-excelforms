@@ -1,7 +1,9 @@
 {% ckan_extends %}
 {% block page %}
   {{ super() }}
-  {% if resource.url_type == 'tabledesigner' %}
+  {% if
+      resource.url_type == 'tabledesigner'
+      and h.check_access('datastore_upsert', {'resource_id': resource.id}) %}
     <div
       data-module="excelforms_datatables_edit"
       data-edit-text="{{ _('Edit in Excel') }}"
