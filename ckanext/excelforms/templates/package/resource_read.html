@@ -2,8 +2,7 @@
 
 {% import 'macros/form.html' as form %}
 
-{% block resource_tabledesigner %}
-  {{ super() }}
+{% block resource_additional_information %}
   <div class="module-content">
     <form enctype="multipart/form-data" id="excelforms" class="form-horizontal"
       method="post" action="{{ h.url_for(
@@ -11,12 +10,13 @@
       id=pkg.name,
       resource_id=res.id)
     }}">
-      <div "form-group control-medium {% if errors %}has-error{% endif %}">
-        <a href="{{ h.url_for(
+      <div class="form-group control-medium {% if errors %}has-error{% endif %}">
+        <a class="btn btn-default" role="button"
+          href="{{ h.url_for(
           'excelforms.template',
           id=pkg.name,
           resource_id=res.id)
-        }}">{{ _("Excel template") }}</a>
+        }}"><i class="fa fa-download"></i>{{ _("Download Excel template") }}</a>
         <input required
           class="form-control"
           style="height: auto"
@@ -34,11 +34,12 @@
             </div>
           {% endblock %}
         {% endif %}
-      </div>
-      <div class="form-actions form-group">
-        <button type="submit" class="btn btn-primary" name="upload">{{_('Submit')}}</button>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" name="upload">{{_('Upload template data')}}</button>
         <button type="submit" class="btn btn-default" name="validate">{{_('Check for Errors')}}</button>
+      </div>
       </div>
     </form>
   </div>
+  {{ super() }}
 {% endblock %}
