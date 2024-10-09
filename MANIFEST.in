@@ -1,0 +1,6 @@
+include README.md
+include LICENSE
+include COPYING
+include COPYING.fr
+include requirements.txt
+recursive-include ckanext/excelforms *.html *.json *.js *.less *.css *.mo *.yml
