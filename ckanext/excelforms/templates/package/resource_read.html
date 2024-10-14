@@ -3,7 +3,8 @@
 {% import 'macros/form.html' as form %}
 
 {% block resource_additional_information %}
-  {% if h.check_access('datastore_upsert', {'resource_id': res.id}) %}
+  {% if res.url_type == 'tabledesigner'
+        and h.check_access('datastore_upsert', {'resource_id': res.id}) %}
     <div class="module-content">
       <form enctype="multipart/form-data" id="excelforms" class="form-horizontal"
         method="post" action="{{ h.url_for(
